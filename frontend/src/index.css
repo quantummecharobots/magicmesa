@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  /* Magic Mesa Dark Theme */
+  --color-mesa-dark: #1a1a2e;
+  --color-mesa-surface: #16213e;
+  --color-mesa-card: #1f2b47;
+  --color-mesa-border: #2a3f5f;
+  --color-mesa-blue: #0f3460;
+  --color-mesa-gold: #e94560;
+  --color-mesa-green: #4ade80;
+  --color-mesa-red: #ef4444;
+  --color-mesa-text: #eee;
+  --color-mesa-text-secondary: #a0a0a0;
+}
+
+:root {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #1a1a2e;
+  color: #eee;
+}
+
+.video-playmat {
+  aspect-ratio: 16/9;
+}
