@@ -53,7 +53,7 @@ export function GameLayout({
       <div className="grid grid-cols-3 gap-3 flex-shrink-0">
         {opponents.map((opponent, index) => (
           <div key={index} className="aspect-video">
-            {opponent ? (
+            {opponent && (
               <VideoFeed
                 stream={opponent.stream}
                 name={opponent.name}
@@ -62,12 +62,6 @@ export function GameLayout({
                 seat={opponent.seat}
                 isMuted={false}
               />
-            ) : (
-              <div className="w-full h-full bg-mesa-card rounded-lg border-2 border-dashed border-mesa-border flex items-center justify-center">
-                <span className="text-mesa-text-secondary text-sm">
-                  Waiting for player...
-                </span>
-              </div>
             )}
           </div>
         ))}
