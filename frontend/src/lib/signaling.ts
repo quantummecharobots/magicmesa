@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client'
 
-const SIGNALING_SERVER = `http://${window.location.hostname}:3001`
+const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
+const SIGNALING_SERVER = `${protocol}://${window.location.hostname}:3001`
 
 export interface PlayerInfo {
   id: string

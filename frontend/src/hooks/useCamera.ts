@@ -11,12 +11,11 @@ export interface CameraSettings {
   frameRate: number
 }
 
-const DEFAULT_4K_CONSTRAINTS: MediaStreamConstraints = {
+const DEFAULT_CONSTRAINTS: MediaStreamConstraints = {
   video: {
-    width: { ideal: 3840, min: 1920 },
-    height: { ideal: 2160, min: 1080 },
-    frameRate: { ideal: 30, max: 60 },
-    facingMode: 'environment'
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 }
   },
   audio: true
 }
@@ -60,9 +59,9 @@ export function useCamera() {
       }
 
       const constraints: MediaStreamConstraints = {
-        ...DEFAULT_4K_CONSTRAINTS,
+        ...DEFAULT_CONSTRAINTS,
         video: {
-          ...(DEFAULT_4K_CONSTRAINTS.video as MediaTrackConstraints),
+          ...(DEFAULT_CONSTRAINTS.video as MediaTrackConstraints),
           ...(deviceId && { deviceId: { exact: deviceId } })
         }
       }

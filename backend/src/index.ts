@@ -1,16 +1,41 @@
 import express from 'express'
-import { createServer } from 'http'
+import { createServer } from 'https'
+import { createServer as createHttpServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
+import { execSync } from 'child_process'
+import { join } from 'path'
 
 const app = express()
 app.use(cors())
 app.use(express.json())
 
-const server = createServer(app)
+// Generate self-signed cert if needed
+const certDir = join(process.cwd(), '.cert')
+const keyPath = join(certDir, 'key.pem')
+const certPath = join(certDir, 'cert.pem')
+
+if (!existsSync(certDir)) {
+  mkdirSync(certDir, { recursive: true })
+}
+
+if (!existsSync(keyPath) || !existsSync(certPath)) {
+  console.log('Generating self-signed certificate...')
+  try {
+    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 365 -nodes -subj "/CN=localhost"`, { stdio: 'pipe' })
+  } catch {
+    console.log('OpenSSL not available, falling back to HTTP')
+  }
+}
+
+const useHttps = existsSync(keyPath) && existsSync(certPath)
+const server = useHttps
+  ? createServer({ key: readFileSync(keyPath), cert: readFileSync(certPath) }, app)
+  : createHttpServer(app)
 const io = new Server(server, {
   cors: {
-    origin: /^http:\/\/localhost:\d+$/,
+    origin: '*',
     methods: ['GET', 'POST']
   }
 })
@@ -181,7 +206,7 @@ io.on('connection', (socket) => {
   })
 
   socket.on('ice-candidate', (data: { to: string; candidate: RTCIceCandidateInit }) => {
-    console.log(`[WebRTC] Relaying ICE candidate from ${socket.id} to ${data.to}`)
+    console.log(`[WebRTC] Relaying ICE candidate from ${socket.id} to ${data.to}`, data.candidate?.candidate?.slice(0, 50))
     io.to(data.to).emit('ice-candidate', {
       from: socket.id,
       candidate: data.candidate
@@ -264,5 +289,6 @@ const PORT = process.env.PORT || 3001
 const HOST = '0.0.0.0'
 
 server.listen(Number(PORT), HOST, () => {
-  console.log(`Magic Mesa signaling server running on ${HOST}:${PORT}`)
+  const protocol = useHttps ? 'https' : 'http'
+  console.log(`Magic Mesa signaling server running on ${protocol}://${HOST}:${PORT}`)
 })
