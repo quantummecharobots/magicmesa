@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Search, X, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Search, X, ExternalLink, Trash2 } from 'lucide-react'
 
 interface Card {
   id: string
@@ -8,12 +8,14 @@ interface Card {
     normal: string
     large: string
     art_crop: string
+    small: string
   }
   card_faces?: Array<{
     name: string
     image_uris?: {
       normal: string
       large: string
+      small: string
     }
   }>
   scryfall_uri: string
@@ -25,24 +27,70 @@ interface Card {
 interface CardPanelProps {
   isOpen: boolean
   onClose: () => void
+  initialSearch?: string
 }
 
-export function CardPanel({ isOpen, onClose }: CardPanelProps) {
+export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Card[]>([])
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
+  const [cardStack, setCardStack] = useState<Card[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
+  const debounceRef = useRef<number | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const searchCards = async () => {
-    if (!searchQuery.trim()) return
-
-    setIsSearching(true)
-    setError('')
+  // Fetch autocomplete suggestions
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSuggestions([])
+      return
+    }
 
     try {
       const response = await fetch(
-        `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}&order=name`
+        `https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(query)}`
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setSuggestions(data.data.slice(0, 8))
+      }
+    } catch (err) {
+      console.error('Autocomplete error:', err)
+    }
+  }, [])
+
+  // Debounced input handler
+  const handleInputChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    setSelectedSuggestionIndex(-1)
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    debounceRef.current = window.setTimeout(() => {
+      fetchSuggestions(value)
+      setShowSuggestions(true)
+    }, 150)
+  }, [fetchSuggestions])
+
+  // Search for cards
+  const searchCards = useCallback(async (query?: string, autoSelect?: boolean) => {
+    const searchTerm = query || searchQuery
+    if (!searchTerm.trim()) return
+
+    setIsSearching(true)
+    setError('')
+    setShowSuggestions(false)
+    setSuggestions([])
+
+    try {
+      const response = await fetch(
+        `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchTerm)}&order=name`
       )
 
       if (!response.ok) {
@@ -55,29 +103,102 @@ export function CardPanel({ isOpen, onClose }: CardPanelProps) {
       }
 
       const data = await response.json()
-      setSearchResults(data.data.slice(0, 20))
+      const results = data.data.slice(0, 20)
+      setSearchResults(results)
+
+      // Auto-select first result if requested (for AI recognition)
+      if (autoSelect && results.length > 0) {
+        const card = results[0]
+        setSelectedCard(card)
+        // Add to stack if not already there
+        setCardStack(prev => {
+          if (prev.some(c => c.id === card.id)) return prev
+          return [card, ...prev]
+        })
+      }
     } catch (err) {
       setError('Failed to search cards')
       console.error(err)
     } finally {
       setIsSearching(false)
     }
-  }
+  }, [searchQuery])
 
+  // Handle selecting a suggestion
+  const selectSuggestion = useCallback((suggestion: string) => {
+    setSearchQuery(suggestion)
+    setShowSuggestions(false)
+    setSuggestions([])
+    searchCards(suggestion)
+  }, [searchCards])
+
+  // Keyboard navigation for suggestions
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedSuggestionIndex(prev =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        )
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (selectedSuggestionIndex >= 0) {
+          selectSuggestion(suggestions[selectedSuggestionIndex])
+        } else if (searchQuery.trim()) {
+          searchCards()
+        }
+      } else if (e.key === 'Escape') {
+        setShowSuggestions(false)
+      }
+    } else if (e.key === 'Enter') {
       searchCards()
     }
   }
 
-  const getCardImage = (card: Card): string => {
-    if (card.image_uris?.large) {
-      return card.image_uris.large
+  // Auto-search when initialSearch prop changes (from AI recognition)
+  useEffect(() => {
+    if (initialSearch && isOpen) {
+      setSearchQuery(initialSearch)
+      setSelectedCard(null)
+      setShowSuggestions(false)
+      // Auto-search and select the first result
+      searchCards(initialSearch, true)
     }
-    if (card.card_faces?.[0]?.image_uris?.large) {
-      return card.card_faces[0].image_uris.large
+  }, [initialSearch, isOpen, searchCards])
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
     }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [])
+
+  const getCardImage = (card: Card, size: 'large' | 'normal' | 'small' = 'large'): string => {
+    if (card.image_uris?.[size]) {
+      return card.image_uris[size]
+    }
+    if (card.card_faces?.[0]?.image_uris?.[size]) {
+      return card.card_faces[0].image_uris[size]
+    }
+    // Fallback to any available size
+    if (card.image_uris?.normal) return card.image_uris.normal
+    if (card.card_faces?.[0]?.image_uris?.normal) return card.card_faces[0].image_uris.normal
     return ''
+  }
+
+  const removeFromStack = (cardId: string) => {
+    setCardStack(prev => prev.filter(c => c.id !== cardId))
+  }
+
+  const clearStack = () => {
+    setCardStack([])
   }
 
   if (!isOpen) return null
@@ -98,16 +219,35 @@ export function CardPanel({ isOpen, onClose }: CardPanelProps) {
       {/* Search */}
       <div className="p-4 border-b border-mesa-border">
         <div className="flex gap-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search cards..."
-            className="flex-1 bg-mesa-dark border border-mesa-border rounded px-3 py-2 text-mesa-text text-sm focus:outline-none focus:border-mesa-gold"
-          />
+          <div className="flex-1 relative" ref={inputRef}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              placeholder="Search cards..."
+              className="w-full bg-mesa-dark border border-mesa-border rounded px-3 py-2 text-mesa-text text-sm focus:outline-none focus:border-mesa-gold"
+            />
+            {/* Autocomplete dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-mesa-dark border border-mesa-border rounded shadow-lg z-20 max-h-64 overflow-y-auto">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => selectSuggestion(suggestion)}
+                    className={`w-full text-left px-3 py-2 text-sm text-mesa-text hover:bg-mesa-card ${
+                      index === selectedSuggestionIndex ? 'bg-mesa-card' : ''
+                    }`}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
-            onClick={searchCards}
+            onClick={() => searchCards()}
             disabled={isSearching}
             className="px-3 py-2 bg-mesa-gold rounded hover:bg-mesa-gold/90 disabled:opacity-50"
           >
@@ -187,10 +327,59 @@ export function CardPanel({ isOpen, onClose }: CardPanelProps) {
 
             {!isSearching && !error && searchResults.length === 0 && (
               <p className="text-mesa-text-secondary text-sm text-center py-8">
-                Search for a card to see it here
+                Type a card name to search
               </p>
             )}
           </>
+        )}
+
+        {/* Card Stack */}
+        {cardStack.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-mesa-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-mesa-text-secondary text-xs font-semibold uppercase tracking-wide">
+                Scanned Cards ({cardStack.length})
+              </h3>
+              <button
+                onClick={clearStack}
+                className="text-mesa-text-secondary hover:text-mesa-red text-xs flex items-center gap-1"
+                title="Clear all"
+              >
+                <Trash2 className="w-3 h-3" />
+                Clear
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {cardStack.map((card) => (
+                <button
+                  key={card.id}
+                  onClick={() => setSelectedCard(card)}
+                  className={`relative group w-16 rounded overflow-hidden border-2 transition-all ${
+                    selectedCard?.id === card.id
+                      ? 'border-mesa-gold'
+                      : 'border-transparent hover:border-mesa-border'
+                  }`}
+                  title={card.name}
+                >
+                  <img
+                    src={getCardImage(card, 'small')}
+                    alt={card.name}
+                    className="w-full"
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFromStack(card.id)
+                    }}
+                    className="absolute top-0 right-0 bg-black/70 text-white p-0.5 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Mic, MicOff, Video, VideoOff, Maximize2 } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Maximize2, Scan } from 'lucide-react'
 
 interface VideoFeedProps {
   stream: MediaStream | null
@@ -14,8 +14,10 @@ interface VideoFeedProps {
   onToggleMute?: () => void
   onToggleVideo?: () => void
   onFullscreen?: () => void
+  onCaptureCard?: (videoElement: HTMLVideoElement) => void
   audioEnabled?: boolean
   videoEnabled?: boolean
+  isProcessing?: boolean
 }
 
 export function VideoFeed({
@@ -31,8 +33,10 @@ export function VideoFeed({
   onToggleMute,
   onToggleVideo,
   onFullscreen,
+  onCaptureCard,
   audioEnabled = true,
-  videoEnabled = true
+  videoEnabled = true,
+  isProcessing = false
 }: VideoFeedProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -51,14 +55,29 @@ export function VideoFeed({
     'border-purple-500'
   ]
 
+  const handleVideoClick = () => {
+    if (isLocal && onCaptureCard && videoRef.current && stream && !isProcessing) {
+      onCaptureCard(videoRef.current)
+    }
+  }
+
   return (
     <div className={`relative bg-mesa-card rounded-lg overflow-hidden border-2 ${seatColors[seat]} transition-all`}>
+      {/* Scanning indicator */}
+      {isProcessing && (
+        <div className="absolute top-2 right-2 bg-mesa-gold/90 px-2 py-1 rounded-full text-xs text-white flex items-center gap-1 z-10 animate-pulse">
+          <Scan className="w-3 h-3" />
+          <span>Scanning...</span>
+        </div>
+      )}
       <video
+        onClick={handleVideoClick}
         ref={videoRef}
         autoPlay
         playsInline
         muted={isLocal || isMuted}
-        className="w-full h-full object-cover video-playmat"
+        className={`w-full h-full object-cover video-playmat ${isLocal && onCaptureCard ? 'cursor-pointer' : ''}`}
+        title={isLocal && onCaptureCard ? 'Click to scan card' : undefined}
       />
 
       {/* Player name badge */}
@@ -133,6 +152,16 @@ export function VideoFeed({
         {/* Controls */}
         {isLocal && (
           <div className="flex gap-1">
+            {onCaptureCard && (
+              <button
+                onClick={() => videoRef.current && onCaptureCard(videoRef.current)}
+                disabled={!stream || isProcessing}
+                className={`p-2 rounded bg-black/70 text-mesa-text hover:bg-mesa-gold hover:text-white disabled:opacity-50 ${isProcessing ? 'animate-pulse' : ''}`}
+                title="Scan card"
+              >
+                <Scan className="w-4 h-4" />
+              </button>
+            )}
             {onToggleMute && (
               <button
                 onClick={onToggleMute}

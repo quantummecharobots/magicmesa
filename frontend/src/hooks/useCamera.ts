@@ -11,25 +11,33 @@ export interface CameraSettings {
   frameRate: number
 }
 
-const DEFAULT_CONSTRAINTS: MediaStreamConstraints = {
-  video: {
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    frameRate: { ideal: 30 }
-  },
-  audio: true
+export interface Resolution {
+  label: string
+  width: number
+  height: number
 }
+
+export const RESOLUTIONS: Resolution[] = [
+  { label: '4K (2160p)', width: 3840, height: 2160 },
+  { label: '1080p', width: 1920, height: 1080 },
+  { label: '720p', width: 1280, height: 720 },
+  { label: '480p', width: 854, height: 480 }
+]
+
+const DEFAULT_RESOLUTION = RESOLUTIONS[0] // 4K
 
 export function useCamera() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [devices, setDevices] = useState<CameraDevice[]>([])
   const [currentDevice, setCurrentDevice] = useState<string | null>(null)
+  const [currentResolution, setCurrentResolution] = useState<Resolution>(DEFAULT_RESOLUTION)
   const [settings, setSettings] = useState<CameraSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [videoEnabled, setVideoEnabled] = useState(true)
   const streamRef = useRef<MediaStream | null>(null)
+  const resolutionRef = useRef<Resolution>(DEFAULT_RESOLUTION)
 
   const getDevices = useCallback(async () => {
     try {
@@ -48,9 +56,12 @@ export function useCamera() {
     }
   }, [])
 
-  const startCamera = useCallback(async (deviceId?: string) => {
+  const startCamera = useCallback(async (deviceId?: string, resolution?: Resolution) => {
     setIsLoading(true)
     setError(null)
+
+    // Use provided resolution or current resolution
+    const res = resolution || resolutionRef.current
 
     try {
       // Stop existing stream
@@ -59,11 +70,13 @@ export function useCamera() {
       }
 
       const constraints: MediaStreamConstraints = {
-        ...DEFAULT_CONSTRAINTS,
         video: {
-          ...(DEFAULT_CONSTRAINTS.video as MediaTrackConstraints),
+          width: { ideal: res.width },
+          height: { ideal: res.height },
+          frameRate: { ideal: 30 },
           ...(deviceId && { deviceId: { exact: deviceId } })
-        }
+        },
+        audio: true
       }
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -109,6 +122,12 @@ export function useCamera() {
     return startCamera(deviceId)
   }, [startCamera])
 
+  const changeResolution = useCallback(async (resolution: Resolution) => {
+    resolutionRef.current = resolution
+    setCurrentResolution(resolution)
+    return startCamera(currentDevice || undefined, resolution)
+  }, [startCamera, currentDevice])
+
   const toggleAudio = useCallback(() => {
     if (streamRef.current) {
       const audioTrack = streamRef.current.getAudioTracks()[0]
@@ -142,6 +161,7 @@ export function useCamera() {
     stream,
     devices,
     currentDevice,
+    currentResolution,
     settings,
     error,
     isLoading,
@@ -150,6 +170,7 @@ export function useCamera() {
     startCamera,
     stopCamera,
     switchCamera,
+    changeResolution,
     toggleAudio,
     toggleVideo,
     getDevices

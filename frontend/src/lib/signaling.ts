@@ -17,19 +17,55 @@ export interface RoomState {
   startingLife: number
   players: PlayerInfo[]
   format: string
+  roomName?: string
+}
+
+export interface PublicRoom {
+  code: string
+  name: string
+  format: string
+  playerCount: number
+  maxPlayers: number
+  hostName: string
 }
 
 class SignalingClient {
   private socket: Socket | null = null
   private listeners: Map<string, Set<(...args: unknown[]) => void>> = new Map()
+  private connectPromise: Promise<void> | null = null
   public localStream: MediaStream | null = null
 
   connect(): Promise<void> {
-    return new Promise((resolve) => {
+    // If already connected, return immediately
+    if (this.socket?.connected) {
+      return Promise.resolve()
+    }
+
+    // If connection is in progress, return existing promise
+    if (this.connectPromise) {
+      return this.connectPromise
+    }
+
+    this.connectPromise = new Promise((resolve, reject) => {
+      console.log('Connecting to signaling server:', SIGNALING_SERVER)
       this.socket = io(SIGNALING_SERVER)
+
+      const timeout = setTimeout(() => {
+        this.connectPromise = null
+        reject(new Error('Connection timeout'))
+      }, 10000)
+
       this.socket.on('connect', () => {
+        clearTimeout(timeout)
         console.log('Connected to signaling server')
         resolve()
+      })
+
+      this.socket.on('connect_error', (err) => {
+        clearTimeout(timeout)
+        this.connectPromise = null
+        console.error('Connection error:', err)
+        reject(err)
       })
 
       // Set up event forwarding
@@ -43,7 +79,8 @@ class SignalingClient {
         'life-updated',
         'poison-updated',
         'commander-damage-updated',
-        'host-changed'
+        'host-changed',
+        'rooms-updated'
       ]
 
       events.forEach(event => {
@@ -53,11 +90,14 @@ class SignalingClient {
         })
       })
     })
+
+    return this.connectPromise
   }
 
   disconnect(): void {
     this.socket?.disconnect()
     this.socket = null
+    this.connectPromise = null
   }
 
   get id(): string | undefined {
@@ -68,24 +108,34 @@ class SignalingClient {
     return this.socket?.connected ?? false
   }
 
-  createRoom(name: string, format: string): Promise<{ code: string; seat: number; startingLife: number }> {
+  createRoom(name: string, format: string, roomName?: string, isPublic: boolean = true): Promise<{ code: string; seat: number; startingLife: number; roomName: string }> {
     return new Promise((resolve, reject) => {
-      this.socket?.emit('create-room', { name, format }, (response: {
+      this.socket?.emit('create-room', { name, format, roomName, isPublic }, (response: {
         success: boolean
         code?: string
         seat?: number
         startingLife?: number
+        roomName?: string
         error?: string
       }) => {
         if (response.success) {
           resolve({
             code: response.code!,
             seat: response.seat!,
-            startingLife: response.startingLife!
+            startingLife: response.startingLife!,
+            roomName: response.roomName!
           })
         } else {
           reject(new Error(response.error))
         }
+      })
+    })
+  }
+
+  listRooms(): Promise<PublicRoom[]> {
+    return new Promise((resolve) => {
+      this.socket?.emit('list-rooms', (rooms: PublicRoom[]) => {
+        resolve(rooms)
       })
     })
   }

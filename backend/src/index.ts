@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import { createServer } from 'https'
 import { createServer as createHttpServer } from 'http'
@@ -6,10 +7,11 @@ import cors from 'cors'
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
 import { execSync } from 'child_process'
 import { join } from 'path'
+import Anthropic from '@anthropic-ai/sdk'
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' })) // Increase limit for image data
 
 // Generate self-signed cert if needed
 const certDir = join(process.cwd(), '.cert')
@@ -30,6 +32,70 @@ if (!existsSync(keyPath) || !existsSync(certPath)) {
 }
 
 const useHttps = existsSync(keyPath) && existsSync(certPath)
+
+// Initialize Anthropic client (uses ANTHROPIC_API_KEY env var)
+const anthropic = new Anthropic()
+
+// Card recognition endpoint using Claude Vision
+app.post('/api/recognize-card', async (req, res) => {
+  try {
+    const { image } = req.body
+
+    if (!image) {
+      return res.status(400).json({ error: 'No image provided' })
+    }
+
+    // Extract base64 data and media type from data URL
+    const matches = image.match(/^data:(.+);base64,(.+)$/)
+    if (!matches) {
+      return res.status(400).json({ error: 'Invalid image format' })
+    }
+
+    const mediaType = matches[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+    const base64Data = matches[2]
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: base64Data
+              }
+            },
+            {
+              type: 'text',
+              text: 'What Magic: The Gathering card is this? Reply with ONLY the card name - no explanation, no punctuation, no quotes. If you can read any part of the title, guess the card. Example response: Lightning Bolt'
+            }
+          ]
+        }
+      ]
+    })
+
+    let cardName = response.content[0].type === 'text'
+      ? response.content[0].text.trim()
+      : 'UNKNOWN'
+
+    // If response is too long or contains explanation, treat as unknown
+    if (cardName.length > 50 || cardName.includes('\n') || cardName.toLowerCase().includes('cannot') || cardName.toLowerCase().includes('sorry')) {
+      console.log(`[CardRecognition] Got verbose response, treating as unknown: ${cardName.slice(0, 100)}...`)
+      cardName = 'UNKNOWN'
+    }
+
+    console.log(`[CardRecognition] Identified: ${cardName}`)
+    res.json({ cardName: cardName === 'UNKNOWN' ? null : cardName })
+  } catch (err) {
+    console.error('[CardRecognition] Error:', err)
+    res.status(500).json({ error: 'Failed to recognize card' })
+  }
+})
+
 const server = useHttps
   ? createServer({ key: readFileSync(keyPath), cert: readFileSync(certPath) }, app)
   : createHttpServer(app)
@@ -51,14 +117,46 @@ interface Player {
 
 interface Room {
   code: string
+  name: string
   hostId: string
   players: Map<string, Player>
   format: 'commander' | 'standard' | 'modern'
   startingLife: number
   createdAt: Date
+  isPublic: boolean
 }
 
 const rooms = new Map<string, Room>()
+const roomDeletionTimers = new Map<string, NodeJS.Timeout>()
+
+const ROOM_TIMEOUT_MS = 60000 // 1 minute
+
+function getPublicRooms() {
+  const publicRooms: Array<{
+    code: string
+    name: string
+    format: string
+    playerCount: number
+    maxPlayers: number
+    hostName: string
+  }> = []
+
+  rooms.forEach((room) => {
+    if (room.isPublic && room.players.size > 0 && room.players.size < 4) {
+      const host = room.players.get(room.hostId)
+      publicRooms.push({
+        code: room.code,
+        name: room.name,
+        format: room.format,
+        playerCount: room.players.size,
+        maxPlayers: 4,
+        hostName: host?.name || 'Unknown'
+      })
+    }
+  })
+
+  return publicRooms
+}
 
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -83,17 +181,26 @@ io.on('connection', (socket) => {
   let currentRoom: string | null = null
   let playerName: string | null = null
 
-  socket.on('create-room', (data: { name: string; format: string }, callback) => {
+  // Send current room list on connect
+  socket.emit('rooms-updated', getPublicRooms())
+
+  socket.on('list-rooms', (callback) => {
+    callback(getPublicRooms())
+  })
+
+  socket.on('create-room', (data: { name: string; format: string; roomName?: string; isPublic?: boolean }, callback) => {
     const code = generateRoomCode()
     const startingLife = data.format === 'commander' ? 40 : 20
 
     const room: Room = {
       code,
+      name: data.roomName || `${data.name}'s Game`,
       hostId: socket.id,
       players: new Map(),
       format: data.format as Room['format'],
       startingLife,
-      createdAt: new Date()
+      createdAt: new Date(),
+      isPublic: data.isPublic ?? true
     }
 
     const player: Player = {
@@ -112,16 +219,28 @@ io.on('connection', (socket) => {
     currentRoom = code
     playerName = data.name
 
-    callback({ success: true, code, seat: 0, startingLife })
-    console.log(`Room ${code} created by ${data.name}`)
+    // Broadcast updated room list to all clients
+    io.emit('rooms-updated', getPublicRooms())
+
+    callback({ success: true, code, seat: 0, startingLife, roomName: room.name })
+    console.log(`Room ${code} "${room.name}" created by ${data.name}`)
   })
 
   socket.on('join-room', (data: { code: string; name: string }, callback) => {
-    const room = rooms.get(data.code.toUpperCase())
+    const roomCode = data.code.toUpperCase()
+    const room = rooms.get(roomCode)
 
     if (!room) {
       callback({ success: false, error: 'Room not found' })
       return
+    }
+
+    // Cancel any pending room deletion
+    const pendingTimer = roomDeletionTimers.get(roomCode)
+    if (pendingTimer) {
+      clearTimeout(pendingTimer)
+      roomDeletionTimers.delete(roomCode)
+      console.log(`Room ${roomCode} deletion cancelled - player rejoining`)
     }
 
     if (room.players.size >= 4) {
@@ -145,8 +264,8 @@ io.on('connection', (socket) => {
     }
 
     room.players.set(socket.id, player)
-    socket.join(data.code.toUpperCase())
-    currentRoom = data.code.toUpperCase()
+    socket.join(roomCode)
+    currentRoom = roomCode
     playerName = data.name
 
     // Notify existing players
@@ -176,7 +295,10 @@ io.on('connection', (socket) => {
       format: room.format
     })
 
-    console.log(`${data.name} joined room ${data.code}`)
+    // Broadcast updated room list
+    io.emit('rooms-updated', getPublicRooms())
+
+    console.log(`${data.name} joined room ${roomCode}`)
   })
 
   // WebRTC Signaling (unified signal event for simple-peer)
@@ -270,8 +392,17 @@ io.on('connection', (socket) => {
         socket.to(currentRoom).emit('player-left', { id: socket.id })
 
         if (room.players.size === 0) {
-          rooms.delete(currentRoom)
-          console.log(`Room ${currentRoom} deleted (empty)`)
+          // Start deletion timer instead of immediate deletion
+          const roomCode = currentRoom
+          console.log(`Room ${roomCode} is empty, will delete in 60 seconds`)
+          const timer = setTimeout(() => {
+            if (rooms.has(roomCode) && rooms.get(roomCode)!.players.size === 0) {
+              rooms.delete(roomCode)
+              roomDeletionTimers.delete(roomCode)
+              console.log(`Room ${roomCode} deleted (timeout)`)
+            }
+          }, ROOM_TIMEOUT_MS)
+          roomDeletionTimers.set(roomCode, timer)
         } else if (room.hostId === socket.id) {
           // Transfer host to next player
           const newHost = room.players.keys().next().value
@@ -280,6 +411,9 @@ io.on('connection', (socket) => {
             io.to(currentRoom).emit('host-changed', { newHostId: newHost })
           }
         }
+
+        // Broadcast updated room list
+        io.emit('rooms-updated', getPublicRooms())
       }
     }
   })

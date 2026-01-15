@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import { useCamera } from '../hooks/useCamera'
+import { useCamera, RESOLUTIONS } from '../hooks/useCamera'
 import { useWebRTC } from '../hooks/useWebRTC'
+import { useCardRecognition } from '../hooks/useCardRecognition'
 import { signaling, PlayerInfo } from '../lib/signaling'
 import { GameLayout } from '../components/GameLayout'
 import { CardPanel } from '../components/CardPanel'
@@ -39,6 +40,7 @@ export function Room() {
   const [copied, setCopied] = useState(false)
   const [showCardPanel, setShowCardPanel] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [recognizedCard, setRecognizedCard] = useState<string | undefined>(undefined)
 
   const {
     stream,
@@ -49,10 +51,21 @@ export function Room() {
     toggleVideo,
     settings: cameraSettings,
     devices,
-    switchCamera
+    switchCamera,
+    currentResolution,
+    changeResolution
   } = useCamera()
 
   const { peers, initiateConnection } = useWebRTC(stream)
+  const { isProcessing, captureAndRecognize } = useCardRecognition()
+
+  // Handle card capture on click
+  const handleCaptureCard = useCallback(async (videoElement: HTMLVideoElement) => {
+    const result = await captureAndRecognize(videoElement)
+    // Always open panel, set card name if recognized
+    setRecognizedCard(result?.cardName || undefined)
+    setShowCardPanel(true)
+  }, [captureAndRecognize])
 
   // Initialize camera on mount
   useEffect(() => {
@@ -241,7 +254,9 @@ export function Room() {
     poison: myPoison,
     stream,
     audioEnabled,
-    videoEnabled
+    videoEnabled,
+    onCaptureCard: handleCaptureCard,
+    isProcessing
   }
 
   const remotePlayers = Array.from(players.values())
@@ -336,7 +351,11 @@ export function Room() {
         </div>
 
         {/* Card panel */}
-        <CardPanel isOpen={showCardPanel} onClose={() => setShowCardPanel(false)} />
+        <CardPanel
+          isOpen={showCardPanel}
+          onClose={() => setShowCardPanel(false)}
+          initialSearch={recognizedCard}
+        />
       </div>
 
       {/* Settings modal */}
@@ -366,6 +385,29 @@ export function Room() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-mesa-text text-sm mb-2">Resolution</label>
+                <select
+                  value={`${currentResolution.width}x${currentResolution.height}`}
+                  onChange={(e) => {
+                    const res = RESOLUTIONS.find(r => `${r.width}x${r.height}` === e.target.value)
+                    if (res) changeResolution(res)
+                  }}
+                  className="w-full bg-mesa-dark border border-mesa-border rounded px-3 py-2 text-mesa-text text-sm"
+                >
+                  {RESOLUTIONS.map(res => (
+                    <option key={`${res.width}x${res.height}`} value={`${res.width}x${res.height}`}>
+                      {res.label}
+                    </option>
+                  ))}
+                </select>
+                {cameraSettings && (
+                  <p className="text-mesa-text-secondary text-xs mt-1">
+                    Actual: {cameraSettings.width}x{cameraSettings.height}
+                  </p>
+                )}
               </div>
 
               <div>

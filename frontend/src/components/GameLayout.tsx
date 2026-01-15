@@ -13,6 +13,8 @@ interface GameLayoutProps {
   localPlayer: Player & {
     audioEnabled: boolean
     videoEnabled: boolean
+    onCaptureCard?: (videoElement: HTMLVideoElement) => void
+    isProcessing?: boolean
   }
   remotePlayers: Player[]
   onLifeChange: (delta: number) => void
@@ -82,6 +84,8 @@ export function GameLayout({
           onPoisonChange={onPoisonChange}
           onToggleMute={onToggleMute}
           onToggleVideo={onToggleVideo}
+          onCaptureCard={localPlayer.onCaptureCard}
+          isProcessing={localPlayer.isProcessing}
         />
       </div>
     </div>
