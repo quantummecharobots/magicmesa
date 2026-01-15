@@ -1,4 +1,4 @@
-import { Minus, Plus, Skull, Heart } from 'lucide-react'
+import { Minus, Plus, Skull, Heart, Swords } from 'lucide-react'
 
 interface LifeCounterProps {
   life: number
@@ -7,7 +7,7 @@ interface LifeCounterProps {
   onLifeChange: (life: number) => void
   onPoisonChange: (poison: number) => void
   commanderDamage?: Record<string, number>
-  onCommanderDamageChange?: (from: string, damage: number) => void
+  onCommanderDamageChange?: (from: string, damage: number, lifeDelta: number) => void
   opponents?: Array<{ id: string; name: string }>
 }
 
@@ -21,6 +21,13 @@ export function LifeCounter({
   onCommanderDamageChange,
   opponents = []
 }: LifeCounterProps) {
+  const totalCommanderDamage = Object.values(commanderDamage).reduce((sum, d) => sum + d, 0)
+
+  const handleCommanderDamage = (opponentId: string, newDamage: number) => {
+    const currentDamage = commanderDamage[opponentId] || 0
+    const delta = newDamage - currentDamage
+    onCommanderDamageChange?.(opponentId, newDamage, delta)
+  }
   return (
     <div className="bg-mesa-surface rounded-lg p-4 border border-mesa-border">
       {/* Life Total */}
@@ -118,29 +125,37 @@ export function LifeCounter({
       {/* Commander Damage */}
       {opponents.length > 0 && onCommanderDamageChange && (
         <div>
-          <div className="text-mesa-text-secondary text-sm mb-2">Commander Damage</div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-mesa-text-secondary text-sm flex items-center gap-1">
+              <Swords className="w-4 h-4 text-orange-400" /> Commander Damage
+            </span>
+            <span className={`text-xs ${totalCommanderDamage >= 21 ? 'text-mesa-red font-bold' : 'text-mesa-text-secondary'}`}>
+              Total: {totalCommanderDamage}/21
+            </span>
+          </div>
           <div className="space-y-2">
             {opponents.map(opponent => {
               const damage = commanderDamage[opponent.id] || 0
+              const isLethal = damage >= 21
               return (
                 <div
                   key={opponent.id}
-                  className="flex items-center justify-between bg-mesa-card rounded px-3 py-2"
+                  className={`flex items-center justify-between rounded px-3 py-2 ${isLethal ? 'bg-mesa-red/20 border border-mesa-red' : 'bg-mesa-card'}`}
                 >
                   <span className="text-mesa-text text-sm">{opponent.name}</span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onCommanderDamageChange(opponent.id, Math.max(0, damage - 1))}
+                      onClick={() => handleCommanderDamage(opponent.id, Math.max(0, damage - 1))}
                       className="w-6 h-6 rounded bg-mesa-border hover:bg-mesa-border/70 text-mesa-text text-sm"
                     >
                       -
                     </button>
-                    <span className={`w-8 text-center font-bold ${damage >= 21 ? 'text-mesa-red' : 'text-mesa-text'}`}>
+                    <span className={`w-8 text-center font-bold ${isLethal ? 'text-mesa-red' : 'text-orange-400'}`}>
                       {damage}
                     </span>
                     <button
-                      onClick={() => onCommanderDamageChange(opponent.id, damage + 1)}
-                      className="w-6 h-6 rounded bg-mesa-border hover:bg-mesa-border/70 text-mesa-text text-sm"
+                      onClick={() => handleCommanderDamage(opponent.id, damage + 1)}
+                      className="w-6 h-6 rounded bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 text-sm"
                     >
                       +
                     </button>
@@ -149,6 +164,9 @@ export function LifeCounter({
               )
             })}
           </div>
+          {totalCommanderDamage >= 21 && (
+            <p className="text-center text-mesa-red text-sm mt-2">Lethal commander damage!</p>
+          )}
         </div>
       )}
     </div>

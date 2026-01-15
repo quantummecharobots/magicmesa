@@ -59,39 +59,57 @@ export function Room() {
     startCamera()
   }, [startCamera])
 
+  // Store stream on signaling for WebRTC access
+  useEffect(() => {
+    signaling.localStream = stream
+  }, [stream])
+
   // Initialize existing players from join state
   useEffect(() => {
-    if (state?.players) {
+    if (state?.players && signaling.id) {
+      console.log('[Room] Initializing players, my ID:', signaling.id)
+      console.log('[Room] Players from state:', state.players.map(p => `${p.name}(${p.id})`))
+
       const playerMap = new Map<string, Player>()
       state.players.forEach(p => {
         if (p.id !== signaling.id) {
+          console.log(`[Room] Adding remote player: ${p.name}`)
           playerMap.set(p.id, { ...p, stream: null })
+        } else {
+          console.log(`[Room] Skipping self: ${p.name}`)
         }
       })
       setPlayers(playerMap)
 
-      // Initiate connections to existing players
-      state.players.forEach(p => {
-        if (p.id !== signaling.id) {
-          initiateConnection(p.id)
-        }
-      })
+      // Initiate connections to existing players after a short delay
+      const playersToConnect = state.players
+      setTimeout(() => {
+        playersToConnect?.forEach(p => {
+          if (p.id !== signaling.id) {
+            console.log(`[Room] Initiating connection to ${p.name}`)
+            initiateConnection(p.id)
+          }
+        })
+      }, 500)
     }
   }, [state?.players, initiateConnection])
 
   // Handle new player joining
   useEffect(() => {
     const handlePlayerJoined = (data: PlayerInfo) => {
+      console.log(`[Room] Player joined event: ${data.name} (${data.id})`)
       setPlayers(prev => {
         const updated = new Map(prev)
         updated.set(data.id, { ...data, stream: null })
+        console.log(`[Room] Players now: ${updated.size}`)
         return updated
       })
-      // New player joined, initiate connection
-      initiateConnection(data.id)
+      // Don't initiate connection here - the joining player will initiate to us
+      console.log(`[Room] Waiting for ${data.name} to connect to us`)
     }
 
     const handlePlayerLeft = (data: { id: string }) => {
+      console.log(`[Room] Player left: ${data.id}`)
       setPlayers(prev => {
         const updated = new Map(prev)
         updated.delete(data.id)
@@ -136,15 +154,29 @@ export function Room() {
 
   // Update player streams from WebRTC peers
   useEffect(() => {
+    console.log('[Room] Peers updated, checking streams:', peers.size, 'peers')
+    peers.forEach((peer, peerId) => {
+      console.log(`[Room] Peer ${peerId}: stream=${peer.stream ? 'yes' : 'no'}`)
+    })
+
     setPlayers(prev => {
       const updated = new Map(prev)
+      let changed = false
+
       peers.forEach((peer, peerId) => {
         const player = updated.get(peerId)
-        if (player && peer.stream) {
-          updated.set(peerId, { ...player, stream: peer.stream })
+        if (player) {
+          if (peer.stream && player.stream !== peer.stream) {
+            console.log(`[Room] Setting stream for player ${player.name}`)
+            updated.set(peerId, { ...player, stream: peer.stream })
+            changed = true
+          }
+        } else {
+          console.log(`[Room] No player found for peer ${peerId}`)
         }
       })
-      return updated
+
+      return changed ? updated : prev
     })
   }, [peers])
 
@@ -160,10 +192,17 @@ export function Room() {
     signaling.updatePoison(newPoison)
   }, [myPoison])
 
-  const handleCommanderDamageChange = useCallback((from: string, damage: number) => {
+  const handleCommanderDamageChange = useCallback((from: string, damage: number, lifeDelta: number) => {
     setCommanderDamage(prev => ({ ...prev, [from]: damage }))
     signaling.updateCommanderDamage(from, damage)
-  }, [])
+
+    // Apply commander damage to life total
+    if (lifeDelta !== 0) {
+      const newLife = myLife - lifeDelta
+      setMyLife(newLife)
+      signaling.updateLife(newLife)
+    }
+  }, [myLife])
 
   const copyRoomCode = async () => {
     if (code) {

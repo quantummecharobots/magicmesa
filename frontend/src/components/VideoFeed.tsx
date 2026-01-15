@@ -37,10 +37,12 @@ export function VideoFeed({
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
+    console.log(`[VideoFeed] ${name}: stream=${stream ? 'yes' : 'no'}, isLocal=${isLocal}`)
     if (videoRef.current && stream) {
+      console.log(`[VideoFeed] ${name}: Setting srcObject with ${stream.getTracks().length} tracks`)
       videoRef.current.srcObject = stream
     }
-  }, [stream])
+  }, [stream, name, isLocal])
 
   const seatColors = [
     'border-blue-500',

@@ -125,6 +125,7 @@ io.on('connection', (socket) => {
     playerName = data.name
 
     // Notify existing players
+    console.log(`[Room] Emitting player-joined to room ${currentRoom} for ${data.name}`)
     socket.to(currentRoom).emit('player-joined', {
       id: socket.id,
       name: data.name,
@@ -153,23 +154,35 @@ io.on('connection', (socket) => {
     console.log(`${data.name} joined room ${data.code}`)
   })
 
-  // WebRTC Signaling
+  // WebRTC Signaling (unified signal event for simple-peer)
+  socket.on('signal', (data: { to: string; signal: unknown }) => {
+    console.log(`[WebRTC] Relaying signal from ${socket.id} to ${data.to}`)
+    io.to(data.to).emit('signal', {
+      from: socket.id,
+      signal: data.signal
+    })
+  })
+
+  // Legacy WebRTC signaling (keep for compatibility)
   socket.on('offer', (data: { to: string; offer: RTCSessionDescriptionInit }) => {
-    socket.to(data.to).emit('offer', {
+    console.log(`[WebRTC] Relaying offer from ${socket.id} to ${data.to}`)
+    io.to(data.to).emit('offer', {
       from: socket.id,
       offer: data.offer
     })
   })
 
   socket.on('answer', (data: { to: string; answer: RTCSessionDescriptionInit }) => {
-    socket.to(data.to).emit('answer', {
+    console.log(`[WebRTC] Relaying answer from ${socket.id} to ${data.to}`)
+    io.to(data.to).emit('answer', {
       from: socket.id,
       answer: data.answer
     })
   })
 
   socket.on('ice-candidate', (data: { to: string; candidate: RTCIceCandidateInit }) => {
-    socket.to(data.to).emit('ice-candidate', {
+    console.log(`[WebRTC] Relaying ICE candidate from ${socket.id} to ${data.to}`)
+    io.to(data.to).emit('ice-candidate', {
       from: socket.id,
       candidate: data.candidate
     })
@@ -248,7 +261,8 @@ io.on('connection', (socket) => {
 })
 
 const PORT = process.env.PORT || 3001
+const HOST = '0.0.0.0'
 
-server.listen(PORT, () => {
-  console.log(`Magic Mesa signaling server running on port ${PORT}`)
+server.listen(Number(PORT), HOST, () => {
+  console.log(`Magic Mesa signaling server running on ${HOST}:${PORT}`)
 })

@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client'
 
-const SIGNALING_SERVER = 'http://localhost:3001'
+const SIGNALING_SERVER = `http://${window.location.hostname}:3001`
 
 export interface PlayerInfo {
   id: string
@@ -21,6 +21,7 @@ export interface RoomState {
 class SignalingClient {
   private socket: Socket | null = null
   private listeners: Map<string, Set<(...args: unknown[]) => void>> = new Map()
+  public localStream: MediaStream | null = null
 
   connect(): Promise<void> {
     return new Promise((resolve) => {
@@ -37,6 +38,7 @@ class SignalingClient {
         'offer',
         'answer',
         'ice-candidate',
+        'signal',
         'life-updated',
         'poison-updated',
         'commander-damage-updated',
@@ -45,6 +47,7 @@ class SignalingClient {
 
       events.forEach(event => {
         this.socket?.on(event, (...args) => {
+          console.log(`[Signaling] Received event: ${event}`)
           this.emit(event, ...args)
         })
       })
@@ -109,6 +112,10 @@ class SignalingClient {
         }
       })
     })
+  }
+
+  sendSignal(to: string, signal: unknown): void {
+    this.socket?.emit('signal', { to, signal })
   }
 
   sendOffer(to: string, offer: RTCSessionDescriptionInit): void {
