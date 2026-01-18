@@ -178,6 +178,7 @@ class SignalingClient {
   }
 
   sendIceCandidate(to: string, candidate: RTCIceCandidateInit): void {
+    console.log(`[Signaling] Sending ICE candidate to ${to}`, candidate.candidate?.slice(0, 50))
     this.socket?.emit('ice-candidate', { to, candidate })
   }
 

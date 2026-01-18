@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useCamera, RESOLUTIONS } from '../hooks/useCamera'
 import { useWebRTC } from '../hooks/useWebRTC'
@@ -7,7 +7,7 @@ import { signaling, PlayerInfo } from '../lib/signaling'
 import { GameLayout } from '../components/GameLayout'
 import { CardPanel } from '../components/CardPanel'
 import { LifeCounter } from '../components/LifeCounter'
-import { Copy, Check, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Copy, Check, LogOut, Search, Settings, Users, RefreshCw } from 'lucide-react'
 
 interface LocationState {
   name: string
@@ -27,15 +27,78 @@ interface Player {
   stream: MediaStream | null
 }
 
+interface SavedSession {
+  code: string
+  name: string
+  seat: number
+  startingLife: number
+  format: string
+  isHost: boolean
+  life: number
+  poison: number
+}
+
+const SESSION_KEY = 'magicmesa_session'
+
+function saveSession(session: SavedSession) {
+  console.log('[Session] Saving session:', session)
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+}
+
+function loadSession(): SavedSession | null {
+  const saved = sessionStorage.getItem(SESSION_KEY)
+  console.log('[Session] Loading session:', saved)
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved)
+      console.log('[Session] Parsed session:', parsed)
+      return parsed
+    } catch (e) {
+      console.error('[Session] Failed to parse session:', e)
+      return null
+    }
+  }
+  return null
+}
+
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY)
+}
+
 export function Room() {
   const { code } = useParams<{ code: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const state = location.state as LocationState | null
+  const locationState = location.state as LocationState | null
+
+  // Always try to load session - we need it to detect refresh
+  const savedSession = loadSession()
+
+  // Detect refresh: we have session data for this room but signaling is not connected
+  // This happens because React Router preserves locationState across refresh,
+  // but the socket connection is lost
+  const needsReconnect = savedSession?.code === code && !signaling.connected
+
+  // Debug logging (can be removed in production)
+  if (needsReconnect) {
+    console.log('[Room] Detected page refresh, will reconnect to room:', code)
+  }
+
+  // Use location state, or restore from session if we need to reconnect
+  const state = locationState || (needsReconnect && savedSession ? {
+    name: savedSession.name,
+    seat: savedSession.seat,
+    startingLife: savedSession.startingLife,
+    format: savedSession.format,
+    isHost: savedSession.isHost,
+    players: [] // Will be populated on rejoin
+  } : null)
 
   const [players, setPlayers] = useState<Map<string, Player>>(new Map())
-  const [myLife, setMyLife] = useState(state?.startingLife || 40)
-  const [myPoison, setMyPoison] = useState(0)
+  const playersRef = useRef<Map<string, Player>>(new Map())
+  const [myLife, setMyLife] = useState(savedSession?.life ?? state?.startingLife ?? 40)
+  const [myPoison, setMyPoison] = useState(savedSession?.poison ?? 0)
+  const [isRejoining, setIsRejoining] = useState(needsReconnect)
   const [commanderDamage, setCommanderDamage] = useState<Record<string, number>>({})
   const [copied, setCopied] = useState(false)
   const [showCardPanel, setShowCardPanel] = useState(false)
@@ -79,6 +142,65 @@ export function Room() {
     signaling.localStream = stream
   }, [stream])
 
+  // Save session to sessionStorage whenever relevant state changes
+  useEffect(() => {
+    if (state && code) {
+      saveSession({
+        code,
+        name: state.name,
+        seat: state.seat,
+        startingLife: state.startingLife,
+        format: state.format,
+        isHost: state.isHost,
+        life: myLife,
+        poison: myPoison
+      })
+    }
+  }, [state, code, myLife, myPoison])
+
+  // Auto-rejoin room on refresh
+  useEffect(() => {
+    // Get the name to use - prefer locationState (has current data), fall back to savedSession
+    const nameToUse = locationState?.name || savedSession?.name
+
+    if (isRejoining && code && nameToUse) {
+      console.log('[Room] Reconnecting to room after refresh...')
+      const rejoin = async () => {
+        try {
+          await signaling.connect()
+          const result = await signaling.joinRoom(code, nameToUse)
+          console.log('[Room] Rejoined room successfully')
+
+          // Update players from rejoin result
+          const playerMap = new Map<string, Player>()
+          result.players.forEach(p => {
+            if (p.id !== signaling.id) {
+              playerMap.set(p.id, { ...p, stream: null })
+            }
+          })
+          setPlayers(playerMap)
+
+          // Initiate connections to existing players
+          setTimeout(() => {
+            result.players.forEach(p => {
+              if (p.id !== signaling.id) {
+                console.log(`[Room] Initiating connection to ${p.name}`)
+                initiateConnection(p.id)
+              }
+            })
+          }, 500)
+
+          setIsRejoining(false)
+        } catch (err) {
+          console.error('[Room] Failed to rejoin:', err)
+          clearSession()
+          navigate('/')
+        }
+      }
+      rejoin()
+    }
+  }, [isRejoining, code, locationState?.name, savedSession?.name, navigate, initiateConnection])
+
   // Initialize existing players from join state
   useEffect(() => {
     if (state?.players && signaling.id) {
@@ -110,10 +232,36 @@ export function Room() {
     }
   }, [state?.players, initiateConnection])
 
+  // Track pending removals for grace period
+  const pendingRemovals = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  // Keep playersRef in sync with players state
+  useEffect(() => {
+    playersRef.current = players
+  }, [players])
+
   // Handle new player joining
   useEffect(() => {
     const handlePlayerJoined = (data: PlayerInfo) => {
       console.log(`[Room] Player joined event: ${data.name} (${data.id})`)
+
+      // Cancel any pending removal for a player with the same name (they're rejoining)
+      // Use playersRef.current to access current state, not stale closure
+      pendingRemovals.current.forEach((timeout, oldId) => {
+        const existingPlayer = playersRef.current.get(oldId)
+        if (existingPlayer?.name === data.name) {
+          console.log(`[Room] Cancelling pending removal for ${data.name} (old ID: ${oldId})`)
+          clearTimeout(timeout)
+          pendingRemovals.current.delete(oldId)
+          // Remove the old entry immediately
+          setPlayers(prev => {
+            const updated = new Map(prev)
+            updated.delete(oldId)
+            return updated
+          })
+        }
+      })
+
       setPlayers(prev => {
         const updated = new Map(prev)
         updated.set(data.id, { ...data, stream: null })
@@ -125,12 +273,21 @@ export function Room() {
     }
 
     const handlePlayerLeft = (data: { id: string }) => {
-      console.log(`[Room] Player left: ${data.id}`)
-      setPlayers(prev => {
-        const updated = new Map(prev)
-        updated.delete(data.id)
-        return updated
-      })
+      const leavingPlayer = playersRef.current.get(data.id)
+      console.log(`[Room] Player left: ${data.id} (${leavingPlayer?.name || 'unknown'}), waiting 5s before removing`)
+
+      // Add a grace period before removing - they might be refreshing
+      const timeout = setTimeout(() => {
+        console.log(`[Room] Grace period expired, removing player ${data.id}`)
+        setPlayers(prev => {
+          const updated = new Map(prev)
+          updated.delete(data.id)
+          return updated
+        })
+        pendingRemovals.current.delete(data.id)
+      }, 5000) // 5 second grace period
+
+      pendingRemovals.current.set(data.id, timeout)
     }
 
     const handleLifeUpdated = (data: { playerId: string; life: number }) => {
@@ -230,8 +387,21 @@ export function Room() {
   }
 
   const leaveRoom = () => {
+    clearSession()
     signaling.disconnect()
     navigate('/')
+  }
+
+  // Show rejoining indicator
+  if (isRejoining) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center panel-ornate p-8">
+          <RefreshCw className="w-8 h-8 text-mesa-gold mx-auto mb-4 animate-spin" />
+          <p className="text-mesa-text">Rejoining room...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!state) {

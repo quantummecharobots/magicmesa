@@ -11,9 +11,22 @@ const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
+    // Free TURN servers from Open Relay Project
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
   ]
 }
 
@@ -21,6 +34,8 @@ export function useWebRTC(localStream: MediaStream | null) {
   const [peers, setPeers] = useState<Map<string, PeerConnection>>(new Map())
   const peersRef = useRef<Map<string, PeerConnection>>(new Map())
   const localStreamRef = useRef<MediaStream | null>(localStream)
+  // Queue ICE candidates that arrive before remote description is set
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
 
   // Update ref when stream changes and add tracks to existing connections
   useEffect(() => {
@@ -70,22 +85,40 @@ export function useWebRTC(localStream: MediaStream | null) {
       }
     }
 
-    // Send ICE candidates
+    // Send ICE candidates (trickle ICE)
     pc.onicecandidate = (event) => {
-      console.log(`[WebRTC] ICE candidate event for ${peerId}:`, event.candidate ? 'got candidate' : 'gathering complete')
+      console.log(`[WebRTC] onicecandidate fired for ${peerId}:`, event.candidate ? 'has candidate' : 'null (gathering done)')
       if (event.candidate) {
-        console.log(`[WebRTC] Sending ICE candidate to ${peerId}`)
-        signaling.sendIceCandidate(peerId, event.candidate.toJSON())
+        try {
+          console.log(`[WebRTC] Sending ICE candidate to ${peerId}: ${event.candidate.candidate.slice(0, 60)}...`)
+          signaling.sendIceCandidate(peerId, event.candidate.toJSON())
+        } catch (err) {
+          console.error(`[WebRTC] Error sending ICE candidate:`, err)
+        }
+      } else {
+        console.log(`[WebRTC] ICE gathering complete for ${peerId}`)
       }
     }
 
     pc.onicegatheringstatechange = () => {
-      console.log(`[WebRTC] ICE gathering state: ${pc.iceGatheringState}`)
+      console.log(`[WebRTC] ICE gathering state changed for ${peerId}: ${pc.iceGatheringState}`)
     }
 
+    // Log initial state
+    console.log(`[WebRTC] Initial ICE gathering state for ${peerId}: ${pc.iceGatheringState}`)
+
     pc.oniceconnectionstatechange = () => {
-      console.log(`[WebRTC] ICE state with ${peerId}: ${pc.iceConnectionState}`)
+      console.log(`[WebRTC] ICE connection state with ${peerId}: ${pc.iceConnectionState}`)
+      // Don't auto-restart on disconnect - the connection is unstable and constant restarts make it worse
+      // Just log for now
     }
+
+    pc.onconnectionstatechange = () => {
+      console.log(`[WebRTC] Connection state with ${peerId}: ${pc.connectionState}`)
+    }
+
+    // Note: We don't use onnegotiationneeded because it fires at unpredictable times
+    // and causes state conflicts. ICE restart is handled explicitly in oniceconnectionstatechange.
 
     const peerConn: PeerConnection = { peerId, connection: pc, stream: null }
     peersRef.current.set(peerId, peerConn)
@@ -94,7 +127,23 @@ export function useWebRTC(localStream: MediaStream | null) {
     return pc
   }, [updatePeers])
 
-  // Initiate connection (caller)
+  // Apply any queued ICE candidates
+  const applyPendingCandidates = useCallback(async (peerId: string, pc: RTCPeerConnection) => {
+    const pending = pendingCandidatesRef.current.get(peerId)
+    if (pending && pending.length > 0) {
+      console.log(`[WebRTC] Applying ${pending.length} queued ICE candidates for ${peerId}`)
+      for (const candidate of pending) {
+        try {
+          await pc.addIceCandidate(candidate)
+        } catch (err) {
+          console.warn(`[WebRTC] Failed to add queued candidate:`, err)
+        }
+      }
+      pendingCandidatesRef.current.delete(peerId)
+    }
+  }, [])
+
+  // Initiate connection (caller) - sends offer immediately, candidates trickle
   const initiateConnection = useCallback(async (peerId: string) => {
     // Prevent duplicate connections
     if (peersRef.current.has(peerId)) {
@@ -102,38 +151,16 @@ export function useWebRTC(localStream: MediaStream | null) {
       return
     }
 
-    console.log(`[WebRTC] Initiating to ${peerId}`)
+    console.log(`[WebRTC] Initiating connection to ${peerId}`)
     const pc = createPeerConnection(peerId)
 
     try {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
+      console.log(`[WebRTC] Set local description (offer) for ${peerId}, gathering state: ${pc.iceGatheringState}`)
 
-      // Wait for ICE gathering (with timeout)
-      if (pc.iceGatheringState !== 'complete') {
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(() => {
-            console.log(`[WebRTC] ICE gathering timeout, sending anyway`)
-            resolve()
-          }, 3000)
-
-          const checkState = () => {
-            console.log(`[WebRTC] ICE gathering state changed: ${pc.iceGatheringState}`)
-            if (pc.iceGatheringState === 'complete') {
-              clearTimeout(timeout)
-              pc.removeEventListener('icegatheringstatechange', checkState)
-              resolve()
-            }
-          }
-          pc.addEventListener('icegatheringstatechange', checkState)
-          if (pc.iceGatheringState === 'complete') {
-            clearTimeout(timeout)
-            resolve()
-          }
-        })
-      }
-
-      console.log(`[WebRTC] Sending offer, state: ${pc.iceGatheringState}`)
+      // Send offer immediately - ICE candidates will trickle via onicecandidate
+      console.log(`[WebRTC] Sending offer to ${peerId}`)
       signaling.sendOffer(peerId, pc.localDescription!)
     } catch (err) {
       console.error('[WebRTC] Offer error:', err)
@@ -149,47 +176,36 @@ export function useWebRTC(localStream: MediaStream | null) {
       pc = createPeerConnection(from)
     }
 
-    // Skip if we're not in a state to accept an offer
-    if (pc.signalingState !== 'stable' && pc.signalingState !== 'have-local-offer') {
-      console.log(`[WebRTC] Ignoring offer, wrong state: ${pc.signalingState}`)
-      return
+    // Handle glare (both sides sent offer) - lower ID wins
+    if (pc.signalingState === 'have-local-offer') {
+      const myId = signaling.id || ''
+      if (myId < from) {
+        console.log(`[WebRTC] Glare detected with ${from}, I win (lower ID), ignoring their offer`)
+        return
+      } else {
+        console.log(`[WebRTC] Glare detected with ${from}, they win (lower ID), rolling back`)
+        await pc.setLocalDescription({ type: 'rollback' })
+      }
     }
 
     try {
       await pc.setRemoteDescription(offer)
+      console.log(`[WebRTC] Set remote description for ${from}, gathering state: ${pc.iceGatheringState}`)
+
+      // Apply any pending ICE candidates now that we have remote description
+      await applyPendingCandidates(from, pc)
+
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
+      console.log(`[WebRTC] Set local description (answer) for ${from}, gathering state: ${pc.iceGatheringState}`)
 
-      // Wait for ICE gathering (with timeout)
-      if (pc.iceGatheringState !== 'complete') {
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(() => {
-            console.log(`[WebRTC] ICE gathering timeout, sending anyway`)
-            resolve()
-          }, 3000)
-
-          const checkState = () => {
-            console.log(`[WebRTC] ICE gathering state changed: ${pc.iceGatheringState}`)
-            if (pc.iceGatheringState === 'complete') {
-              clearTimeout(timeout)
-              pc.removeEventListener('icegatheringstatechange', checkState)
-              resolve()
-            }
-          }
-          pc.addEventListener('icegatheringstatechange', checkState)
-          if (pc.iceGatheringState === 'complete') {
-            clearTimeout(timeout)
-            resolve()
-          }
-        })
-      }
-
-      console.log(`[WebRTC] Sending answer, state: ${pc.iceGatheringState}`)
+      // Send answer immediately - ICE candidates will trickle via onicecandidate
+      console.log(`[WebRTC] Sending answer to ${from}`)
       signaling.sendAnswer(from, pc.localDescription!)
     } catch (err) {
       console.error('[WebRTC] Answer error:', err)
     }
-  }, [createPeerConnection])
+  }, [createPeerConnection, applyPendingCandidates])
 
   // Handle incoming answer
   const handleAnswer = useCallback(async (from: string, answer: RTCSessionDescriptionInit) => {
@@ -198,21 +214,44 @@ export function useWebRTC(localStream: MediaStream | null) {
     if (pc) {
       try {
         await pc.setRemoteDescription(answer)
+        // Apply any pending ICE candidates now that we have remote description
+        await applyPendingCandidates(from, pc)
       } catch (err) {
         console.error('[WebRTC] Set answer error:', err)
       }
     }
-  }, [])
+  }, [applyPendingCandidates])
 
-  // Handle ICE candidate
+  // Handle ICE candidate - queue if no remote description yet
   const handleIceCandidate = useCallback(async (from: string, candidate: RTCIceCandidateInit) => {
+    console.log(`[WebRTC] Got ICE candidate from ${from}`)
     const pc = peersRef.current.get(from)?.connection
-    if (pc) {
-      try {
-        await pc.addIceCandidate(candidate)
-      } catch {
-        // Ignore errors for candidates that arrive before remote description
+
+    if (!pc) {
+      // Queue candidate - peer connection doesn't exist yet
+      console.log(`[WebRTC] Queueing ICE candidate for ${from} (no connection yet)`)
+      if (!pendingCandidatesRef.current.has(from)) {
+        pendingCandidatesRef.current.set(from, [])
       }
+      pendingCandidatesRef.current.get(from)!.push(candidate)
+      return
+    }
+
+    if (!pc.remoteDescription) {
+      // Queue candidate - remote description not set yet
+      console.log(`[WebRTC] Queueing ICE candidate for ${from} (no remote description)`)
+      if (!pendingCandidatesRef.current.has(from)) {
+        pendingCandidatesRef.current.set(from, [])
+      }
+      pendingCandidatesRef.current.get(from)!.push(candidate)
+      return
+    }
+
+    try {
+      await pc.addIceCandidate(candidate)
+      console.log(`[WebRTC] Added ICE candidate from ${from}`)
+    } catch (err) {
+      console.warn(`[WebRTC] Failed to add ICE candidate from ${from}:`, err)
     }
   }, [])
 
@@ -221,6 +260,7 @@ export function useWebRTC(localStream: MediaStream | null) {
     if (peer) {
       peer.connection.close()
       peersRef.current.delete(peerId)
+      pendingCandidatesRef.current.delete(peerId)
       updatePeers()
     }
   }, [updatePeers])
@@ -228,6 +268,7 @@ export function useWebRTC(localStream: MediaStream | null) {
   const closeAllConnections = useCallback(() => {
     peersRef.current.forEach(p => p.connection.close())
     peersRef.current.clear()
+    pendingCandidatesRef.current.clear()
     updatePeers()
   }, [updatePeers])
 
