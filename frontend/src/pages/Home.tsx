@@ -3,9 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { signaling, PublicRoom } from '../lib/signaling'
 import { Users, Play, ArrowRight, Globe } from 'lucide-react'
 
+const SAVED_NAME_KEY = 'magicmesa_player_name'
+
 export function Home() {
   const navigate = useNavigate()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(() => {
+    return localStorage.getItem(SAVED_NAME_KEY) || ''
+  })
   const [joinCode, setJoinCode] = useState('')
   const [format, setFormat] = useState('commander')
   const [roomName, setRoomName] = useState('')
@@ -49,6 +53,13 @@ export function Home() {
       signaling.off('rooms-updated', handleRoomsUpdated)
     }
   }, [])
+
+  const handleNameChange = (value: string) => {
+    setName(value)
+    if (value.trim()) {
+      localStorage.setItem(SAVED_NAME_KEY, value.trim())
+    }
+  }
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -159,7 +170,7 @@ export function Home() {
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => handleNameChange(e.target.value)}
             placeholder="Enter your name"
             className="input-ornate"
           />
