@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { Mic, MicOff, Video, VideoOff, Maximize2, Scan, FlipHorizontal2, FlipVertical2 } from 'lucide-react'
 
+interface CaptureOptions {
+  clickPos?: { x: number; y: number }
+  flipped?: boolean
+  mirrored?: boolean
+}
+
 interface VideoFeedProps {
   stream: MediaStream | null
   name: string
@@ -16,7 +22,7 @@ interface VideoFeedProps {
   onToggleMirror?: () => void
   onToggleFlip?: () => void
   onFullscreen?: () => void
-  onCaptureCard?: (videoElement: HTMLVideoElement) => void
+  onCaptureCard?: (videoElement: HTMLVideoElement, options?: CaptureOptions) => void
   onFocusPlayer?: () => void
   audioEnabled?: boolean
   videoEnabled?: boolean
@@ -66,10 +72,19 @@ export function VideoFeed({
     'seat-glow-purple-pulse'
   ]
 
-  const handleVideoClick = () => {
+  const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
     // Card capture works on any video with a stream
     if (onCaptureCard && videoRef.current && stream && !isProcessing) {
-      onCaptureCard(videoRef.current)
+      // Get click position relative to video element (normalized 0-1)
+      const rect = videoRef.current.getBoundingClientRect()
+      const options: CaptureOptions = {
+        clickPos: {
+          x: (e.clientX - rect.left) / rect.width,
+          y: (e.clientY - rect.top) / rect.height
+        }
+      }
+      console.log('[VideoFeed] Click options:', options)
+      onCaptureCard(videoRef.current, options)
     }
   }
 

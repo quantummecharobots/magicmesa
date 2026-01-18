@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useCamera, RESOLUTIONS } from '../hooks/useCamera'
 import { useWebRTC } from '../hooks/useWebRTC'
-import { useCardRecognition } from '../hooks/useCardRecognition'
+import { useCardRecognition, type CaptureOptions } from '../hooks/useCardRecognition'
 import { signaling, PlayerInfo } from '../lib/signaling'
 import { GameLayout } from '../components/GameLayout'
 import { CardPanel } from '../components/CardPanel'
@@ -126,13 +126,19 @@ export function Room() {
   const { peers, initiateConnection } = useWebRTC(stream)
   const { isProcessing, captureAndRecognize } = useCardRecognition()
 
-  // Handle card capture on click
-  const handleCaptureCard = useCallback(async (videoElement: HTMLVideoElement) => {
-    const result = await captureAndRecognize(videoElement)
+  // Handle card capture on click - options include click position and flip/mirror state
+  const handleCaptureCard = useCallback(async (videoElement: HTMLVideoElement, options?: CaptureOptions) => {
+    // Add our flip/mirror state to the options
+    const captureOptions: CaptureOptions = {
+      ...options,
+      flipped: options?.flipped ?? flipped,
+      mirrored: options?.mirrored ?? mirrored
+    }
+    const result = await captureAndRecognize(videoElement, captureOptions)
     // Always open panel, set card name if recognized
     setRecognizedCard(result?.cardName || undefined)
     setShowCardPanel(true)
-  }, [captureAndRecognize])
+  }, [captureAndRecognize, flipped, mirrored])
 
   // Initialize camera on mount
   useEffect(() => {

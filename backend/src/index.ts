@@ -54,9 +54,13 @@ app.post('/api/recognize-card', async (req, res) => {
     const mediaType = matches[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
     const base64Data = matches[2]
 
+    // Log image size for debugging
+    const imageSizeKB = Math.round(base64Data.length * 0.75 / 1024) // base64 is ~33% larger than binary
+    console.log(`[CardRecognition] Received image: ${mediaType}, ~${imageSizeKB} KB`)
+
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 100,
+      model: 'claude-opus-4-20250514',
+      max_tokens: 200,
       messages: [
         {
           role: 'user',
@@ -71,21 +75,43 @@ app.post('/api/recognize-card', async (req, res) => {
             },
             {
               type: 'text',
-              text: 'What Magic: The Gathering card is this? Reply with ONLY the card name - no explanation, no punctuation, no quotes. If you can read any part of the title, guess the card. Example response: Lightning Bolt'
+              text: `Identify the Magic: The Gathering card at the CENTER of this image. There may be other cards visible at the edges - ignore them. Focus only on the card in the middle. Read the card name and respond with ONLY that card name. If unreadable, say UNKNOWN.`
             }
           ]
         }
       ]
     })
 
-    let cardName = response.content[0].type === 'text'
+    const rawResponse = response.content[0].type === 'text'
       ? response.content[0].text.trim()
       : 'UNKNOWN'
 
-    // If response is too long or contains explanation, treat as unknown
-    if (cardName.length > 50 || cardName.includes('\n') || cardName.toLowerCase().includes('cannot') || cardName.toLowerCase().includes('sorry')) {
-      console.log(`[CardRecognition] Got verbose response, treating as unknown: ${cardName.slice(0, 100)}...`)
-      cardName = 'UNKNOWN'
+    console.log(`[CardRecognition] Raw Claude response: "${rawResponse}"`)
+
+    let cardName = rawResponse
+
+    // Try to extract card name from verbose responses
+    // Look for patterns like "this is **Card Name**" or "appears to be **Card Name**"
+    const boldMatch = rawResponse.match(/\*\*([^*]+)\*\*/)
+    if (boldMatch) {
+      cardName = boldMatch[1].trim()
+      console.log(`[CardRecognition] Extracted from bold: "${cardName}"`)
+    } else {
+      // Clean up common issues with the response
+      cardName = rawResponse.replace(/^["'\-\s]+|["'\.\s]+$/g, '')
+
+      // If response is too long or indicates complete failure, treat as unknown
+      if (
+        cardName.length > 60 ||
+        cardName.includes('\n') ||
+        cardName.toLowerCase().includes('cannot read') ||
+        cardName.toLowerCase().includes('cannot make out') ||
+        cardName.toLowerCase().includes('not legible') ||
+        cardName.toLowerCase().includes('unreadable')
+      ) {
+        console.log(`[CardRecognition] Got verbose/uncertain response, treating as unknown: ${cardName.slice(0, 100)}...`)
+        cardName = 'UNKNOWN'
+      }
     }
 
     console.log(`[CardRecognition] Identified: ${cardName}`)
