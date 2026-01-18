@@ -36,6 +36,7 @@ export function useCamera() {
   const [isLoading, setIsLoading] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [videoEnabled, setVideoEnabled] = useState(true)
+  const [mirrored, setMirrored] = useState(true) // Default mirror on for self-view
   const streamRef = useRef<MediaStream | null>(null)
   const resolutionRef = useRef<Resolution>(DEFAULT_RESOLUTION)
 
@@ -76,7 +77,11 @@ export function useCamera() {
           frameRate: { ideal: 30 },
           ...(deviceId && { deviceId: { exact: deviceId } })
         },
-        audio: true
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
       }
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -148,6 +153,10 @@ export function useCamera() {
     }
   }, [])
 
+  const toggleMirror = useCallback(() => {
+    setMirrored(prev => !prev)
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -167,12 +176,14 @@ export function useCamera() {
     isLoading,
     audioEnabled,
     videoEnabled,
+    mirrored,
     startCamera,
     stopCamera,
     switchCamera,
     changeResolution,
     toggleAudio,
     toggleVideo,
+    toggleMirror,
     getDevices
   }
 }

@@ -143,32 +143,38 @@ export function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-mesa-dark flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      {/* Title with fantasy styling */}
       <div className="text-center mb-12">
-        <h1 className="text-5xl font-bold text-mesa-gold mb-2">Magic Mesa</h1>
+        <h1 className="text-5xl font-bold text-mesa-gold font-fantasy text-glow mb-2">
+          Magic Mesa
+        </h1>
         <p className="text-mesa-text-secondary">4K Webcam Gaming for Magic: The Gathering</p>
       </div>
 
       <div className="w-full max-w-md space-y-6">
-        <div className="bg-mesa-surface rounded-lg p-6 border border-mesa-border">
+        {/* Name input panel */}
+        <div className="panel-ornate p-6">
           <label className="block text-mesa-text mb-2 text-sm">Your Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Enter your name"
-            className="w-full bg-mesa-dark border border-mesa-border rounded px-4 py-2 text-mesa-text focus:outline-none focus:border-mesa-gold"
+            className="input-ornate"
           />
         </div>
 
+        {/* Error message */}
         {error && (
-          <div className="bg-mesa-red/20 border border-mesa-red rounded-lg p-4 text-mesa-red text-sm">
-            {error}
+          <div className="panel p-4 border-mesa-red bg-mesa-red/10">
+            <p className="text-mesa-red text-sm">{error}</p>
           </div>
         )}
 
-        <div className="bg-mesa-surface rounded-lg p-6 border border-mesa-border">
-          <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2">
+        {/* Create game panel */}
+        <div className="panel-ornate p-6">
+          <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2 panel-header">
             <Play className="w-5 h-5 text-mesa-gold" />
             Create New Game
           </h2>
@@ -180,7 +186,7 @@ export function Home() {
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
               placeholder={`${name.trim() || 'Your'}'s Game`}
-              className="w-full bg-mesa-dark border border-mesa-border rounded px-4 py-2 text-mesa-text focus:outline-none focus:border-mesa-gold"
+              className="input-ornate"
             />
           </div>
 
@@ -189,7 +195,7 @@ export function Home() {
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value)}
-              className="w-full bg-mesa-dark border border-mesa-border rounded px-4 py-2 text-mesa-text focus:outline-none focus:border-mesa-gold"
+              className="select-ornate"
             >
               <option value="commander">Commander (40 life)</option>
               <option value="standard">Standard (20 life)</option>
@@ -203,7 +209,7 @@ export function Home() {
                 type="checkbox"
                 checked={isPublic}
                 onChange={(e) => setIsPublic(e.target.checked)}
-                className="w-4 h-4 rounded border-mesa-border bg-mesa-dark text-mesa-gold focus:ring-mesa-gold"
+                className="w-4 h-4 rounded border-mesa-border bg-mesa-dark text-mesa-gold focus:ring-mesa-gold accent-mesa-gold"
               />
               List room publicly (others can see and join)
             </label>
@@ -212,21 +218,23 @@ export function Home() {
           <button
             onClick={handleCreate}
             disabled={isCreating}
-            className="w-full bg-mesa-gold text-white font-semibold py-3 rounded hover:bg-mesa-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full btn-gold flex items-center justify-center gap-2"
           >
             {isCreating ? 'Creating...' : 'Create Room'}
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Ornate divider */}
         <div className="flex items-center gap-4">
-          <div className="flex-1 h-px bg-mesa-border" />
-          <span className="text-mesa-text-secondary text-sm">or</span>
-          <div className="flex-1 h-px bg-mesa-border" />
+          <div className="flex-1 divider-ornate" />
+          <span className="text-mesa-text-secondary text-sm font-fantasy">or</span>
+          <div className="flex-1 divider-ornate" />
         </div>
 
-        <div className="bg-mesa-surface rounded-lg p-6 border border-mesa-border">
-          <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2">
+        {/* Join game panel */}
+        <div className="panel-ornate p-6">
+          <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2 panel-header">
             <Users className="w-5 h-5 text-mesa-gold" />
             Join Existing Game
           </h2>
@@ -239,14 +247,14 @@ export function Home() {
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               placeholder="Enter 6-character code"
               maxLength={6}
-              className="w-full bg-mesa-dark border border-mesa-border rounded px-4 py-2 text-mesa-text text-center tracking-widest font-mono text-lg focus:outline-none focus:border-mesa-gold uppercase"
+              className="input-ornate text-center tracking-widest font-mono text-lg uppercase"
             />
           </div>
 
           <button
             onClick={handleJoin}
             disabled={isJoining}
-            className="w-full bg-mesa-blue text-white font-semibold py-3 rounded hover:bg-mesa-blue/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full btn-secondary flex items-center justify-center gap-2"
           >
             {isJoining ? 'Joining...' : 'Join Room'}
             <ArrowRight className="w-4 h-4" />
@@ -257,13 +265,13 @@ export function Home() {
         {publicRooms.length > 0 && (
           <>
             <div className="flex items-center gap-4">
-              <div className="flex-1 h-px bg-mesa-border" />
-              <span className="text-mesa-text-secondary text-sm">open games</span>
-              <div className="flex-1 h-px bg-mesa-border" />
+              <div className="flex-1 divider-ornate" />
+              <span className="text-mesa-text-secondary text-sm font-fantasy">open games</span>
+              <div className="flex-1 divider-ornate" />
             </div>
 
-            <div className="bg-mesa-surface rounded-lg p-6 border border-mesa-border">
-              <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2">
+            <div className="panel-ornate p-6">
+              <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2 panel-header">
                 <Globe className="w-5 h-5 text-mesa-gold" />
                 Open Rooms
               </h2>
@@ -272,7 +280,7 @@ export function Home() {
                 {publicRooms.map((room) => (
                   <div
                     key={room.code}
-                    className="flex items-center justify-between bg-mesa-dark rounded-lg p-4 border border-mesa-border"
+                    className="flex items-center justify-between panel p-4 hover-glow cursor-pointer"
                   >
                     <div>
                       <div className="text-mesa-text font-medium">{room.name}</div>
@@ -283,7 +291,7 @@ export function Home() {
                     <button
                       onClick={() => handleJoinRoom(room.code)}
                       disabled={joiningRoomCode === room.code}
-                      className="bg-mesa-blue text-white px-4 py-2 rounded hover:bg-mesa-blue/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                      className="btn-secondary !py-2 !px-4 text-sm"
                     >
                       {joiningRoomCode === room.code ? 'Joining...' : 'Join'}
                     </button>

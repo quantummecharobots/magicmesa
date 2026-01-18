@@ -8,7 +8,13 @@ interface PeerConnection {
 }
 
 const ICE_SERVERS: RTCConfiguration = {
-  iceServers: []  // Empty for local network - host candidates only
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+  ]
 }
 
 export function useWebRTC(localStream: MediaStream | null) {
@@ -204,7 +210,7 @@ export function useWebRTC(localStream: MediaStream | null) {
     if (pc) {
       try {
         await pc.addIceCandidate(candidate)
-      } catch (err) {
+      } catch {
         // Ignore errors for candidates that arrive before remote description
       }
     }

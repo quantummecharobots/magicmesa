@@ -31,7 +31,7 @@ if (!existsSync(keyPath) || !existsSync(certPath)) {
   }
 }
 
-const useHttps = existsSync(keyPath) && existsSync(certPath)
+const useHttps = false // Force HTTP for local dev
 
 // Initialize Anthropic client (uses ANTHROPIC_API_KEY env var)
 const anthropic = new Anthropic()
@@ -419,7 +419,7 @@ io.on('connection', (socket) => {
   })
 })
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3002
 const HOST = '0.0.0.0'
 
 server.listen(Number(PORT), HOST, () => {

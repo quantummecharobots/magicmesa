@@ -204,13 +204,13 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
   if (!isOpen) return null
 
   return (
-    <div className="w-80 bg-mesa-surface border-l border-mesa-border flex flex-col h-full">
+    <div className="w-80 panel-ornate border-l-2 border-mesa-gold flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-mesa-border flex items-center justify-between">
-        <h2 className="text-mesa-text font-semibold">Card Lookup</h2>
+        <h2 className="text-mesa-text font-semibold font-fantasy text-glow">Card Lookup</h2>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-mesa-card text-mesa-text-secondary"
+          className="btn-icon"
         >
           <X className="w-5 h-5" />
         </button>
@@ -227,17 +227,17 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
               onKeyDown={handleKeyDown}
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               placeholder="Search cards..."
-              className="w-full bg-mesa-dark border border-mesa-border rounded px-3 py-2 text-mesa-text text-sm focus:outline-none focus:border-mesa-gold"
+              className="input-ornate text-sm"
             />
             {/* Autocomplete dropdown */}
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-mesa-dark border border-mesa-border rounded shadow-lg z-20 max-h-64 overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-1 panel border-glow rounded shadow-lg z-20 max-h-64 overflow-y-auto">
                 {suggestions.map((suggestion, index) => (
                   <button
                     key={suggestion}
                     onClick={() => selectSuggestion(suggestion)}
-                    className={`w-full text-left px-3 py-2 text-sm text-mesa-text hover:bg-mesa-card ${
-                      index === selectedSuggestionIndex ? 'bg-mesa-card' : ''
+                    className={`w-full text-left px-3 py-2 text-sm text-mesa-text hover:bg-mesa-card transition-colors ${
+                      index === selectedSuggestionIndex ? 'bg-mesa-card border-l-2 border-mesa-gold' : ''
                     }`}
                   >
                     {suggestion}
@@ -249,9 +249,9 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
           <button
             onClick={() => searchCards()}
             disabled={isSearching}
-            className="px-3 py-2 bg-mesa-gold rounded hover:bg-mesa-gold/90 disabled:opacity-50"
+            className="btn-gold !py-2 !px-3"
           >
-            <Search className="w-4 h-4 text-white" />
+            <Search className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -262,7 +262,7 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
           <div className="space-y-4">
             <button
               onClick={() => setSelectedCard(null)}
-              className="text-mesa-gold text-sm hover:underline"
+              className="text-mesa-gold text-sm hover:underline font-fantasy"
             >
               &larr; Back to results
             </button>
@@ -270,11 +270,11 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
             <img
               src={getCardImage(selectedCard)}
               alt={selectedCard.name}
-              className="w-full rounded-lg shadow-lg"
+              className="w-full rounded-lg shadow-lg border border-mesa-gold/30"
             />
 
             <div>
-              <h3 className="text-mesa-text font-bold text-lg">{selectedCard.name}</h3>
+              <h3 className="text-mesa-text font-bold text-lg font-fantasy">{selectedCard.name}</h3>
               {selectedCard.mana_cost && (
                 <p className="text-mesa-text-secondary text-sm">{selectedCard.mana_cost}</p>
               )}
@@ -304,7 +304,7 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
             )}
 
             {isSearching && (
-              <p className="text-mesa-text-secondary text-sm text-center py-4">Searching...</p>
+              <p className="text-mesa-text-secondary text-sm text-center py-4 shimmer">Searching...</p>
             )}
 
             {searchResults.length > 0 && (
@@ -313,7 +313,7 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
                   <button
                     key={card.id}
                     onClick={() => setSelectedCard(card)}
-                    className="text-left hover:opacity-80 transition-opacity"
+                    className="text-left hover:opacity-80 transition-opacity hover-glow rounded overflow-hidden"
                   >
                     <img
                       src={getCardImage(card)}
@@ -336,13 +336,13 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
         {/* Card Stack */}
         {cardStack.length > 0 && (
           <div className="mt-6 pt-4 border-t border-mesa-border">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-mesa-text-secondary text-xs font-semibold uppercase tracking-wide">
+            <div className="flex items-center justify-between mb-3 panel-header">
+              <h3 className="text-mesa-text-secondary text-xs font-semibold uppercase tracking-wide font-fantasy">
                 Scanned Cards ({cardStack.length})
               </h3>
               <button
                 onClick={clearStack}
-                className="text-mesa-text-secondary hover:text-mesa-red text-xs flex items-center gap-1"
+                className="text-mesa-text-secondary hover:text-mesa-red text-xs flex items-center gap-1 transition-colors"
                 title="Clear all"
               >
                 <Trash2 className="w-3 h-3" />
@@ -354,7 +354,7 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
                 <button
                   key={card.id}
                   onClick={() => setSelectedCard(card)}
-                  className={`relative group w-16 rounded overflow-hidden border-2 transition-all ${
+                  className={`relative group w-16 rounded overflow-hidden border-2 transition-all hover-glow ${
                     selectedCard?.id === card.id
                       ? 'border-mesa-gold'
                       : 'border-transparent hover:border-mesa-border'
@@ -371,7 +371,7 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
                       e.stopPropagation()
                       removeFromStack(card.id)
                     }}
-                    className="absolute top-0 right-0 bg-black/70 text-white p-0.5 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-0 right-0 bg-black/70 text-white p-0.5 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity hover:bg-mesa-red"
                     title="Remove"
                   >
                     <X className="w-3 h-3" />

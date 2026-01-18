@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { VideoFeed } from './VideoFeed'
 
 interface Player {
@@ -13,6 +14,7 @@ interface GameLayoutProps {
   localPlayer: Player & {
     audioEnabled: boolean
     videoEnabled: boolean
+    mirrored: boolean
     onCaptureCard?: (videoElement: HTMLVideoElement) => void
     isProcessing?: boolean
   }
@@ -21,6 +23,7 @@ interface GameLayoutProps {
   onPoisonChange: (delta: number) => void
   onToggleMute: () => void
   onToggleVideo: () => void
+  onToggleMirror: () => void
 }
 
 export function GameLayout({
@@ -29,11 +32,15 @@ export function GameLayout({
   onLifeChange,
   onPoisonChange,
   onToggleMute,
-  onToggleVideo
+  onToggleVideo,
+  onToggleMirror
 }: GameLayoutProps) {
+  // Track which player is in the large view (null = local player)
+  const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null)
+
   // Arrange players in commander-style layout:
   // Top row: opponents (seats 1, 2, 3 relative to local)
-  // Bottom: local player (largest)
+  // Bottom: focused player (largest)
 
   const getOpponentsBySeat = () => {
     const opponents: (Player | null)[] = [null, null, null]
@@ -49,42 +56,77 @@ export function GameLayout({
 
   const opponents = getOpponentsBySeat()
 
+  // Get the focused player (default to local)
+  const focusedPlayer = focusedPlayerId
+    ? remotePlayers.find(p => p.id === focusedPlayerId) || localPlayer
+    : localPlayer
+
+  const isFocusedLocal = focusedPlayer.id === localPlayer.id
+
+  // Build list of players for the small row (exclude focused player)
+  const smallRowPlayers: (Player | null)[] = []
+
+  // Add opponents to small row (if not focused)
+  opponents.forEach((opponent) => {
+    if (opponent && opponent.id !== focusedPlayerId) {
+      smallRowPlayers.push(opponent)
+    } else if (!opponent) {
+      smallRowPlayers.push(null) // Empty slot
+    }
+  })
+
+  // If a remote player is focused, add local player to small row
+  if (!isFocusedLocal) {
+    smallRowPlayers.push(localPlayer)
+  }
+
   return (
     <div className="flex flex-col gap-3 h-full">
-      {/* Opponents row */}
+      {/* Small players row */}
       <div className="grid grid-cols-3 gap-3 flex-shrink-0">
-        {opponents.map((opponent, index) => (
-          <div key={index} className="aspect-video">
-            {opponent && (
+        {smallRowPlayers.slice(0, 3).map((player, index) => (
+          <div key={player?.id || `empty-${index}`} className="aspect-video">
+            {player && (
               <VideoFeed
-                stream={opponent.stream}
-                name={opponent.name}
-                life={opponent.life}
-                poison={opponent.poison}
-                seat={opponent.seat}
-                isMuted={false}
+                stream={player.stream}
+                name={player.name}
+                life={player.life}
+                poison={player.poison}
+                seat={player.seat}
+                isLocal={player.id === localPlayer.id}
+                isMuted={player.id !== localPlayer.id}
+                audioEnabled={player.id === localPlayer.id ? localPlayer.audioEnabled : undefined}
+                videoEnabled={player.id === localPlayer.id ? localPlayer.videoEnabled : undefined}
+                mirrored={player.id === localPlayer.id ? localPlayer.mirrored : false}
+                onCaptureCard={localPlayer.onCaptureCard}
+                onFocusPlayer={() => setFocusedPlayerId(player.id === localPlayer.id ? null : player.id)}
+                isProcessing={localPlayer.isProcessing}
               />
             )}
           </div>
         ))}
       </div>
 
-      {/* Local player (large) */}
+      {/* Focused player (large) */}
       <div className="flex-1 min-h-0">
         <VideoFeed
-          stream={localPlayer.stream}
-          name={localPlayer.name}
-          life={localPlayer.life}
-          poison={localPlayer.poison}
-          seat={localPlayer.seat}
-          isLocal
-          audioEnabled={localPlayer.audioEnabled}
-          videoEnabled={localPlayer.videoEnabled}
-          onLifeChange={onLifeChange}
-          onPoisonChange={onPoisonChange}
-          onToggleMute={onToggleMute}
-          onToggleVideo={onToggleVideo}
+          stream={focusedPlayer.stream}
+          name={focusedPlayer.name}
+          life={focusedPlayer.life}
+          poison={focusedPlayer.poison}
+          seat={focusedPlayer.seat}
+          isLocal={isFocusedLocal}
+          isMuted={!isFocusedLocal}
+          audioEnabled={isFocusedLocal ? localPlayer.audioEnabled : undefined}
+          videoEnabled={isFocusedLocal ? localPlayer.videoEnabled : undefined}
+          mirrored={isFocusedLocal ? localPlayer.mirrored : false}
+          onLifeChange={isFocusedLocal ? onLifeChange : undefined}
+          onPoisonChange={isFocusedLocal ? onPoisonChange : undefined}
+          onToggleMute={isFocusedLocal ? onToggleMute : undefined}
+          onToggleVideo={isFocusedLocal ? onToggleVideo : undefined}
+          onToggleMirror={isFocusedLocal ? onToggleMirror : undefined}
           onCaptureCard={localPlayer.onCaptureCard}
+          onFocusPlayer={() => setFocusedPlayerId(null)}
           isProcessing={localPlayer.isProcessing}
         />
       </div>

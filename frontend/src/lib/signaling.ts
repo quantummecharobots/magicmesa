@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client'
 
-const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
-const SIGNALING_SERVER = `${protocol}://${window.location.hostname}:3001`
+// Connect to same origin - Vite proxy routes /socket.io to backend
+const SIGNALING_SERVER = window.location.origin
 
 export interface PlayerInfo {
   id: string

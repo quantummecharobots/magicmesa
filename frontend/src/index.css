@@ -1,30 +1,937 @@
 @import "tailwindcss";
 
 @theme {
-  /* Magic Mesa Dark Theme */
-  --color-mesa-dark: #1a1a2e;
-  --color-mesa-surface: #16213e;
-  --color-mesa-card: #1f2b47;
-  --color-mesa-border: #2a3f5f;
-  --color-mesa-blue: #0f3460;
-  --color-mesa-gold: #e94560;
+  /* Magic Mesa Dark Fantasy Theme - MTG Arena Inspired */
+  --color-mesa-dark: #0d0a14;
+  --color-mesa-surface: #1a1525;
+  --color-mesa-card: #241d30;
+  --color-mesa-border: #3d3254;
+  --color-mesa-blue: #2a4a6d;
+  --color-mesa-gold: #D4AF37;
+  --color-mesa-gold-light: #F4CF47;
+  --color-mesa-gold-dark: #B4922A;
+  --color-mesa-purple: #6b4c9a;
   --color-mesa-green: #4ade80;
   --color-mesa-red: #ef4444;
-  --color-mesa-text: #eee;
-  --color-mesa-text-secondary: #a0a0a0;
+  --color-mesa-text: #e8e4d9;
+  --color-mesa-text-secondary: #9d94b8;
+  --color-mesa-glow: rgba(212, 175, 55, 0.4);
+
+  /* Font families */
+  --font-fantasy: 'Cinzel', serif;
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #1a1a2e;
-  color: #eee;
+  background: linear-gradient(180deg, #0d0a14 0%, #1a1525 50%, #0d0a14 100%);
+  background-attachment: fixed;
+  color: #e8e4d9;
 }
 
 .video-playmat {
   aspect-ratio: 16/9;
+}
+
+.video-mirrored {
+  transform: scaleX(-1);
+}
+
+/* ============================================
+   FANTASY TYPOGRAPHY UTILITIES
+   ============================================ */
+
+.font-fantasy {
+  font-family: var(--font-fantasy);
+  letter-spacing: 0.05em;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px rgba(212, 175, 55, 0.6),
+               0 0 20px rgba(212, 175, 55, 0.4),
+               0 0 30px rgba(212, 175, 55, 0.2);
+}
+
+.text-shadow-dark {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8),
+               0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   ORNATE BORDERS & FRAMES
+   ============================================ */
+
+.border-glow {
+  border: 1px solid #D4AF37;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3),
+              inset 0 0 10px rgba(212, 175, 55, 0.1);
+}
+
+.border-glow-pulse {
+  border: 1px solid #D4AF37;
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(212, 175, 55, 0.3),
+                inset 0 0 5px rgba(212, 175, 55, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.5),
+                inset 0 0 15px rgba(212, 175, 55, 0.2);
+  }
+}
+
+.frame-portrait {
+  border: 2px solid #3d3254;
+  box-shadow: 0 0 0 1px #1a1525,
+              0 0 0 3px #D4AF37,
+              0 0 15px rgba(212, 175, 55, 0.3),
+              inset 0 0 30px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(135deg, #241d30 0%, #1a1525 100%);
+}
+
+.frame-corners {
+  position: relative;
+}
+
+.frame-corners::before,
+.frame-corners::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-color: #D4AF37;
+  border-style: solid;
+}
+
+.frame-corners::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+}
+
+.frame-corners::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 2px 2px 0;
+}
+
+/* ============================================
+   EMBOSSED BUTTONS
+   ============================================ */
+
+.btn-gold {
+  background: linear-gradient(180deg, #F4CF47 0%, #D4AF37 50%, #B4922A 100%);
+  color: #0d0a14;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #D4AF37;
+  box-shadow: 0 2px 0 #8a6914,
+              0 4px 8px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-gold:hover {
+  background: linear-gradient(180deg, #fff5c2 0%, #F4CF47 50%, #D4AF37 100%);
+  box-shadow: 0 2px 0 #8a6914,
+              0 4px 12px rgba(212, 175, 55, 0.5),
+              0 0 20px rgba(212, 175, 55, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-gold:active {
+  background: linear-gradient(180deg, #B4922A 0%, #D4AF37 100%);
+  box-shadow: 0 1px 0 #8a6914,
+              inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  transform: translateY(1px);
+}
+
+.btn-gold:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: linear-gradient(180deg, #3d4f6d 0%, #2a4a6d 50%, #1f3654 100%);
+  color: #e8e4d9;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #4a5f7d;
+  box-shadow: 0 2px 0 #152436,
+              0 4px 8px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(180deg, #4a5f7d 0%, #3d4f6d 50%, #2a4a6d 100%);
+  box-shadow: 0 2px 0 #152436,
+              0 4px 12px rgba(42, 74, 109, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #152436,
+              inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-danger {
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #ef4444;
+  box-shadow: 0 2px 0 #991b1b,
+              0 4px 8px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(180deg, #fca5a5 0%, #f87171 50%, #ef4444 100%);
+  transform: translateY(-1px);
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  background: linear-gradient(180deg, #2a2035 0%, #241d30 100%);
+  border: 1px solid #3d3254;
+  color: #e8e4d9;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-icon:hover {
+  background: linear-gradient(180deg, #3d3254 0%, #2a2035 100%);
+  border-color: #D4AF37;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+  color: #D4AF37;
+}
+
+.btn-icon.active {
+  background: linear-gradient(180deg, #D4AF37 0%, #B4922A 100%);
+  border-color: #D4AF37;
+  color: #0d0a14;
+}
+
+/* ============================================
+   PANELS & CARDS
+   ============================================ */
+
+.panel {
+  background: linear-gradient(180deg, #1a1525 0%, #150f1f 100%);
+  border: 1px solid #3d3254;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.panel-ornate {
+  background: linear-gradient(180deg, #1a1525 0%, #150f1f 100%);
+  border: 1px solid #D4AF37;
+  border-radius: 0.5rem;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2),
+              0 4px 20px rgba(0, 0, 0, 0.5),
+              inset 0 0 40px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(212, 175, 55, 0.1);
+  position: relative;
+}
+
+.panel-ornate::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 0.375rem;
+  pointer-events: none;
+}
+
+.panel-header {
+  font-family: var(--font-fantasy);
+  letter-spacing: 0.05em;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid transparent;
+  background-image: linear-gradient(90deg, transparent, #D4AF37, transparent);
+  background-size: 100% 1px;
+  background-position: bottom;
+  background-repeat: no-repeat;
+}
+
+.divider-ornate {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #3d3254 20%, #D4AF37 50%, #3d3254 80%, transparent 100%);
+}
+
+/* ============================================
+   ORNATE INPUTS
+   ============================================ */
+
+.input-ornate {
+  width: 100%;
+  background: linear-gradient(180deg, #0d0a14 0%, #150f1f 100%);
+  border: 1px solid #3d3254;
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  color: #e8e4d9;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+}
+
+.input-ornate:focus {
+  outline: none;
+  border-color: #D4AF37;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4),
+              0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+.input-ornate::placeholder {
+  color: #6b5f7f;
+}
+
+.select-ornate {
+  width: 100%;
+  background: linear-gradient(180deg, #0d0a14 0%, #150f1f 100%);
+  border: 1px solid #3d3254;
+  border-radius: 0.375rem;
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  color: #e8e4d9;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23D4AF37' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+}
+
+.select-ornate:focus {
+  outline: none;
+  border-color: #D4AF37;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4),
+              0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+.select-ornate option {
+  background: #150f1f;
+  color: #e8e4d9;
+}
+
+/* ============================================
+   EFFECTS
+   ============================================ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(212, 175, 55, 0.1) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.hover-glow {
+  transition: all 0.2s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.3),
+              0 8px 30px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+/* ============================================
+   SEAT COLOR GLOWS (for video frames)
+   ============================================ */
+
+.seat-glow-blue {
+  box-shadow: 0 0 0 2px #3b82f6,
+              0 0 20px rgba(59, 130, 246, 0.5),
+              inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.seat-glow-emerald {
+  box-shadow: 0 0 0 2px #34d399,
+              0 0 20px rgba(52, 211, 153, 0.5),
+              inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.seat-glow-amber {
+  box-shadow: 0 0 0 2px #fbbf24,
+              0 0 20px rgba(251, 191, 36, 0.5),
+              inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.seat-glow-purple {
+  box-shadow: 0 0 0 2px #a78bfa,
+              0 0 20px rgba(167, 139, 250, 0.5),
+              inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0a14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3d3254;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D4AF37;
+}
+
+/* ============================================
+   PHASE 1: WOODEN FRAME BORDER SYSTEM
+   ============================================ */
+
+.frame-wooden {
+  position: relative;
+  border: 16px solid transparent;
+  border-image: linear-gradient(
+    180deg,
+    #5c4a32 0%,
+    #8b7355 15%,
+    #6b5a42 30%,
+    #4a3c2a 50%,
+    #6b5a42 70%,
+    #8b7355 85%,
+    #5c4a32 100%
+  ) 1;
+  box-shadow:
+    inset 0 0 0 2px #D4AF37,
+    inset 0 0 15px rgba(212, 175, 55, 0.3),
+    0 0 0 1px #2a2015,
+    0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.frame-wooden::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border: 2px solid rgba(212, 175, 55, 0.4);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Corner flourishes */
+.frame-corner {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  z-index: 10;
+}
+
+.frame-corner::before,
+.frame-corner::after {
+  content: '';
+  position: absolute;
+  background: linear-gradient(135deg, #F4CF47, #D4AF37, #B4922A);
+  border-radius: 50%;
+}
+
+.frame-corner::before {
+  width: 16px;
+  height: 16px;
+  box-shadow:
+    0 0 8px rgba(212, 175, 55, 0.6),
+    inset 0 2px 2px rgba(255, 255, 255, 0.3);
+}
+
+.frame-corner::after {
+  width: 8px;
+  height: 8px;
+  top: 4px;
+  left: 4px;
+  background: linear-gradient(135deg, #fff8dc, #F4CF47);
+}
+
+.frame-corner--tl { top: -8px; left: -8px; }
+.frame-corner--tr { top: -8px; right: -8px; }
+.frame-corner--bl { bottom: -8px; left: -8px; }
+.frame-corner--br { bottom: -8px; right: -8px; }
+
+/* ============================================
+   PHASE 2: FELT/LEATHER PLAY AREA TEXTURE
+   ============================================ */
+
+.felt-texture {
+  background:
+    radial-gradient(ellipse at center, rgba(30, 58, 45, 0.3) 0%, transparent 70%),
+    radial-gradient(ellipse at 30% 30%, rgba(75, 45, 90, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 70%, rgba(75, 45, 90, 0.2) 0%, transparent 50%),
+    linear-gradient(180deg, #1a1525 0%, #150f1f 50%, #0d0a14 100%);
+  position: relative;
+}
+
+.felt-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+  pointer-events: none;
+}
+
+.ambient-glow {
+  position: relative;
+}
+
+.ambient-glow::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================
+   PHASE 3: ENHANCED VIDEO FEED FRAMES
+   ============================================ */
+
+.video-frame-ornate {
+  position: relative;
+  border: 3px solid #D4AF37;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #241d30 0%, #1a1525 100%);
+  box-shadow:
+    0 0 0 1px #B4922A,
+    0 0 0 4px #2a2015,
+    0 0 20px rgba(0, 0, 0, 0.6),
+    inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.video-frame-ornate::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 5px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Corner studs for video frames */
+.video-corner-stud {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle at 30% 30%, #F4CF47, #D4AF37, #8a6914);
+  border-radius: 50%;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  z-index: 10;
+}
+
+.video-corner-stud--tl { top: -6px; left: -6px; }
+.video-corner-stud--tr { top: -6px; right: -6px; }
+.video-corner-stud--bl { bottom: -6px; left: -6px; }
+.video-corner-stud--br { bottom: -6px; right: -6px; }
+
+/* Animated seat glows */
+.seat-glow-blue-pulse {
+  animation: seat-pulse-blue 3s ease-in-out infinite;
+}
+
+.seat-glow-emerald-pulse {
+  animation: seat-pulse-emerald 3s ease-in-out infinite;
+}
+
+.seat-glow-amber-pulse {
+  animation: seat-pulse-amber 3s ease-in-out infinite;
+}
+
+.seat-glow-purple-pulse {
+  animation: seat-pulse-purple 3s ease-in-out infinite;
+}
+
+@keyframes seat-pulse-blue {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #3b82f6, 0 0 15px rgba(59, 130, 246, 0.4), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #60a5fa, 0 0 30px rgba(59, 130, 246, 0.6), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes seat-pulse-emerald {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #34d399, 0 0 15px rgba(52, 211, 153, 0.4), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #6ee7b7, 0 0 30px rgba(52, 211, 153, 0.6), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes seat-pulse-amber {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #fbbf24, 0 0 15px rgba(251, 191, 36, 0.4), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #fcd34d, 0 0 30px rgba(251, 191, 36, 0.6), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes seat-pulse-purple {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #a78bfa, 0 0 15px rgba(167, 139, 250, 0.4), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #c4b5fd, 0 0 30px rgba(167, 139, 250, 0.6), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Ornate player badge */
+.player-badge-ornate {
+  background: linear-gradient(180deg, #2a2035 0%, #1a1525 100%);
+  border: 2px solid #D4AF37;
+  box-shadow:
+    0 0 10px rgba(212, 175, 55, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   PHASE 4: ORNATE LIFE COUNTER PANEL
+   ============================================ */
+
+.life-panel-ornate {
+  background:
+    linear-gradient(180deg, rgba(45, 35, 55, 0.95) 0%, rgba(26, 21, 37, 0.98) 100%);
+  border: 2px solid #D4AF37;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px #B4922A,
+    0 0 20px rgba(212, 175, 55, 0.2),
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    inset 0 0 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.life-panel-ornate::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+  opacity: 0.5;
+}
+
+.life-panel-ornate::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+  opacity: 0.5;
+}
+
+.life-total-display {
+  text-shadow:
+    0 0 20px rgba(212, 175, 55, 0.8),
+    0 0 40px rgba(212, 175, 55, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.counter-btn-minus {
+  background: linear-gradient(180deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+  border: 1px solid #ef4444;
+  box-shadow:
+    0 2px 0 #7f1d1d,
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: all 0.15s ease;
+}
+
+.counter-btn-minus:hover {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+  box-shadow:
+    0 2px 0 #7f1d1d,
+    0 0 15px rgba(239, 68, 68, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.counter-btn-minus:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #7f1d1d, inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.counter-btn-plus {
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 50%, #15803d 100%);
+  border: 1px solid #4ade80;
+  box-shadow:
+    0 2px 0 #14532d,
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: all 0.15s ease;
+}
+
+.counter-btn-plus:hover {
+  background: linear-gradient(180deg, #4ade80 0%, #22c55e 50%, #16a34a 100%);
+  box-shadow:
+    0 2px 0 #14532d,
+    0 0 15px rgba(74, 222, 128, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.counter-btn-plus:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #14532d, inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.section-divider-ornate {
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #3d3254 15%, #D4AF37 50%, #3d3254 85%, transparent 100%);
+  margin: 1rem 0;
+  position: relative;
+}
+
+.section-divider-ornate::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background: #D4AF37;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.6);
+}
+
+/* ============================================
+   PHASE 5: DECORATIVE ELEMENTS & POLISH
+   ============================================ */
+
+.header-ornate {
+  background: linear-gradient(180deg, #1f1a2e 0%, #1a1525 50%, #150f1f 100%);
+  border-bottom: 2px solid;
+  border-image: linear-gradient(90deg, transparent 0%, #D4AF37 20%, #F4CF47 50%, #D4AF37 80%, transparent 100%) 1;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(212, 175, 55, 0.2);
+}
+
+.ambient-lantern {
+  position: relative;
+}
+
+.ambient-lantern::before,
+.ambient-lantern::after {
+  content: '';
+  position: fixed;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: lantern-flicker 4s ease-in-out infinite;
+}
+
+.ambient-lantern::before {
+  top: -50px;
+  left: -50px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.08) 0%, transparent 70%);
+}
+
+.ambient-lantern::after {
+  top: -50px;
+  right: -50px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.08) 0%, transparent 70%);
+  animation-delay: 2s;
+}
+
+@keyframes lantern-flicker {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  25% { opacity: 0.8; transform: scale(1.05); }
+  50% { opacity: 0.5; transform: scale(0.98); }
+  75% { opacity: 0.9; transform: scale(1.02); }
+}
+
+.flourish-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+  position: relative;
+  margin: 1rem 0;
+}
+
+.flourish-divider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 6px;
+  height: 6px;
+  background: #D4AF37;
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.8);
+}
+
+.card-hover-glow {
+  transition: all 0.3s ease;
+}
+
+.card-hover-glow:hover {
+  box-shadow:
+    0 0 25px rgba(212, 175, 55, 0.4),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+  transform: translateY(-3px);
+}
+
+.active-glow {
+  box-shadow:
+    0 0 0 2px #D4AF37,
+    0 0 20px rgba(212, 175, 55, 0.5),
+    0 0 40px rgba(212, 175, 55, 0.2);
+}
+
+/* ============================================
+   PHASE 6: ENHANCED BUTTONS
+   ============================================ */
+
+.btn-gold-ornate {
+  position: relative;
+  background: linear-gradient(180deg, #F4CF47 0%, #D4AF37 40%, #B4922A 100%);
+  color: #0d0a14;
+  font-weight: 700;
+  font-family: var(--font-fantasy);
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1.75rem;
+  border-radius: 6px;
+  border: 2px solid #D4AF37;
+  box-shadow:
+    0 0 0 1px #8a6914,
+    0 4px 0 #6b5512,
+    0 6px 12px rgba(0, 0, 0, 0.5),
+    inset 0 2px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 4px rgba(138, 105, 20, 0.3);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.btn-gold-ornate::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-gold-ornate:hover {
+  background: linear-gradient(180deg, #fff5c2 0%, #F4CF47 40%, #D4AF37 100%);
+  box-shadow:
+    0 0 0 1px #8a6914,
+    0 4px 0 #6b5512,
+    0 0 20px rgba(212, 175, 55, 0.5),
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 4px rgba(138, 105, 20, 0.2);
+  transform: translateY(-2px);
+}
+
+.btn-gold-ornate:hover::before {
+  left: 100%;
+}
+
+.btn-gold-ornate:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 1px #8a6914,
+    0 1px 0 #6b5512,
+    inset 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.btn-icon-ornate {
+  position: relative;
+  padding: 0.625rem;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #2a2035 0%, #1a1525 100%);
+  border: 2px solid #3d3254;
+  color: #e8e4d9;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-icon-ornate:hover {
+  background: linear-gradient(180deg, #3d3254 0%, #2a2035 100%);
+  border-color: #D4AF37;
+  color: #D4AF37;
+  box-shadow:
+    0 0 15px rgba(212, 175, 55, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-icon-ornate.active {
+  background: linear-gradient(180deg, #D4AF37 0%, #B4922A 100%);
+  border-color: #F4CF47;
+  color: #0d0a14;
+  box-shadow:
+    0 0 15px rgba(212, 175, 55, 0.5),
+    inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }

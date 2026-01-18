@@ -47,8 +47,10 @@ export function Room() {
     startCamera,
     audioEnabled,
     videoEnabled,
+    mirrored,
     toggleAudio,
     toggleVideo,
+    toggleMirror,
     settings: cameraSettings,
     devices,
     switchCamera,
@@ -92,6 +94,7 @@ export function Room() {
           console.log(`[Room] Skipping self: ${p.name}`)
         }
       })
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initializing players from join state on mount
       setPlayers(playerMap)
 
       // Initiate connections to existing players after a short delay
@@ -172,6 +175,7 @@ export function Room() {
       console.log(`[Room] Peer ${peerId}: stream=${peer.stream ? 'yes' : 'no'}`)
     })
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Syncing WebRTC peer streams to player state
     setPlayers(prev => {
       const updated = new Map(prev)
       let changed = false
@@ -232,12 +236,12 @@ export function Room() {
 
   if (!state) {
     return (
-      <div className="min-h-screen bg-mesa-dark flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center panel-ornate p-8">
           <p className="text-mesa-text mb-4">Room session expired</p>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 bg-mesa-gold rounded text-white"
+            className="btn-gold-ornate"
           >
             Return Home
           </button>
@@ -255,6 +259,7 @@ export function Room() {
     stream,
     audioEnabled,
     videoEnabled,
+    mirrored,
     onCaptureCard: handleCaptureCard,
     isProcessing
   }
@@ -264,23 +269,23 @@ export function Room() {
   const opponents = remotePlayers.map(p => ({ id: p.id, name: p.name }))
 
   return (
-    <div className="h-screen bg-mesa-dark flex flex-col">
-      {/* Header */}
-      <header className="bg-mesa-surface border-b border-mesa-border px-4 py-3 flex items-center justify-between flex-shrink-0">
+    <div className="h-screen flex flex-col ambient-lantern">
+      {/* Header with ornate styling */}
+      <header className="header-ornate px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h1 className="text-mesa-gold font-bold text-xl">Magic Mesa</h1>
-          <div className="flex items-center gap-2 bg-mesa-card px-3 py-1.5 rounded">
+          <h1 className="text-mesa-gold font-bold text-xl font-fantasy text-glow">Magic Mesa</h1>
+          <div className="flex items-center gap-2 panel border-glow px-3 py-1.5 rounded">
             <span className="text-mesa-text-secondary text-sm">Room:</span>
-            <span className="text-mesa-text font-mono font-bold tracking-wider">{code}</span>
+            <span className="text-mesa-gold font-mono font-bold tracking-wider font-fantasy">{code}</span>
             <button
               onClick={copyRoomCode}
-              className="p-1 hover:bg-mesa-border rounded"
+              className="p-1 hover:bg-mesa-border rounded transition-colors"
               title="Copy room code"
             >
               {copied ? (
                 <Check className="w-4 h-4 text-mesa-green" />
               ) : (
-                <Copy className="w-4 h-4 text-mesa-text-secondary" />
+                <Copy className="w-4 h-4 text-mesa-text-secondary hover:text-mesa-gold" />
               )}
             </button>
           </div>
@@ -298,21 +303,21 @@ export function Room() {
           )}
           <button
             onClick={() => setShowCardPanel(!showCardPanel)}
-            className={`p-2 rounded ${showCardPanel ? 'bg-mesa-gold text-white' : 'bg-mesa-card text-mesa-text hover:bg-mesa-border'}`}
+            className={`btn-icon-ornate ${showCardPanel ? 'active' : ''}`}
             title="Card lookup"
           >
             <Search className="w-5 h-5" />
           </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded bg-mesa-card text-mesa-text hover:bg-mesa-border"
+            className="btn-icon-ornate"
             title="Settings"
           >
             <Settings className="w-5 h-5" />
           </button>
           <button
             onClick={leaveRoom}
-            className="p-2 rounded bg-mesa-red/20 text-mesa-red hover:bg-mesa-red/30"
+            className="btn-icon-ornate hover:!border-mesa-red hover:!text-mesa-red"
             title="Leave room"
           >
             <LogOut className="w-5 h-5" />
@@ -322,9 +327,14 @@ export function Room() {
 
       {/* Main content */}
       <div className="flex-1 flex min-h-0">
-        {/* Game area */}
+        {/* Game area with wooden frame and felt texture */}
         <div className="flex-1 p-4 flex gap-4">
-          <div className="flex-1">
+          <div className="flex-1 frame-wooden felt-texture ambient-glow rounded-lg relative">
+            {/* Corner flourishes */}
+            <div className="frame-corner frame-corner--tl"></div>
+            <div className="frame-corner frame-corner--tr"></div>
+            <div className="frame-corner frame-corner--bl"></div>
+            <div className="frame-corner frame-corner--br"></div>
             <GameLayout
               localPlayer={localPlayer}
               remotePlayers={remotePlayers}
@@ -332,6 +342,7 @@ export function Room() {
               onPoisonChange={handlePoisonChange}
               onToggleMute={toggleAudio}
               onToggleVideo={toggleVideo}
+              onToggleMirror={toggleMirror}
             />
           </div>
 
@@ -360,13 +371,13 @@ export function Room() {
 
       {/* Settings modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-mesa-surface rounded-lg p-6 w-96 border border-mesa-border">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-mesa-text font-semibold">Settings</h2>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="panel-ornate p-6 w-96">
+            <div className="flex items-center justify-between mb-4 panel-header">
+              <h2 className="text-mesa-text font-semibold font-fantasy">Settings</h2>
               <button
                 onClick={() => setShowSettings(false)}
-                className="text-mesa-text-secondary hover:text-mesa-text"
+                className="text-mesa-text-secondary hover:text-mesa-gold text-2xl leading-none"
               >
                 &times;
               </button>
@@ -377,7 +388,7 @@ export function Room() {
                 <label className="block text-mesa-text text-sm mb-2">Camera</label>
                 <select
                   onChange={(e) => switchCamera(e.target.value)}
-                  className="w-full bg-mesa-dark border border-mesa-border rounded px-3 py-2 text-mesa-text text-sm"
+                  className="select-ornate"
                 >
                   {devices.map(device => (
                     <option key={device.deviceId} value={device.deviceId}>
@@ -395,7 +406,7 @@ export function Room() {
                     const res = RESOLUTIONS.find(r => `${r.width}x${r.height}` === e.target.value)
                     if (res) changeResolution(res)
                   }}
-                  className="w-full bg-mesa-dark border border-mesa-border rounded px-3 py-2 text-mesa-text text-sm"
+                  className="select-ornate"
                 >
                   {RESOLUTIONS.map(res => (
                     <option key={`${res.width}x${res.height}`} value={`${res.width}x${res.height}`}>
@@ -423,7 +434,7 @@ export function Room() {
 
             <button
               onClick={() => setShowSettings(false)}
-              className="w-full mt-6 bg-mesa-gold text-white py-2 rounded hover:bg-mesa-gold/90"
+              className="w-full mt-6 btn-gold-ornate"
             >
               Close
             </button>
