@@ -26,6 +26,9 @@ export const RESOLUTIONS: Resolution[] = [
 
 const DEFAULT_RESOLUTION = RESOLUTIONS[0] // 4K
 
+const CAMERA_MIRRORED_KEY = 'magicmesa_camera_mirrored'
+const CAMERA_FLIPPED_KEY = 'magicmesa_camera_flipped'
+
 export function useCamera() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [devices, setDevices] = useState<CameraDevice[]>([])
@@ -36,7 +39,14 @@ export function useCamera() {
   const [isLoading, setIsLoading] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [videoEnabled, setVideoEnabled] = useState(true)
-  const [mirrored, setMirrored] = useState(true) // Default mirror on for self-view
+  const [mirrored, setMirrored] = useState(() => {
+    const saved = localStorage.getItem(CAMERA_MIRRORED_KEY)
+    return saved !== null ? saved === 'true' : true // Default mirror on
+  })
+  const [flipped, setFlipped] = useState(() => {
+    const saved = localStorage.getItem(CAMERA_FLIPPED_KEY)
+    return saved === 'true' // Default off
+  })
   const streamRef = useRef<MediaStream | null>(null)
   const resolutionRef = useRef<Resolution>(DEFAULT_RESOLUTION)
 
@@ -154,7 +164,19 @@ export function useCamera() {
   }, [])
 
   const toggleMirror = useCallback(() => {
-    setMirrored(prev => !prev)
+    setMirrored(prev => {
+      const newValue = !prev
+      localStorage.setItem(CAMERA_MIRRORED_KEY, String(newValue))
+      return newValue
+    })
+  }, [])
+
+  const toggleFlip = useCallback(() => {
+    setFlipped(prev => {
+      const newValue = !prev
+      localStorage.setItem(CAMERA_FLIPPED_KEY, String(newValue))
+      return newValue
+    })
   }, [])
 
   // Cleanup on unmount
@@ -177,6 +199,7 @@ export function useCamera() {
     audioEnabled,
     videoEnabled,
     mirrored,
+    flipped,
     startCamera,
     stopCamera,
     switchCamera,
@@ -184,6 +207,7 @@ export function useCamera() {
     toggleAudio,
     toggleVideo,
     toggleMirror,
+    toggleFlip,
     getDevices
   }
 }

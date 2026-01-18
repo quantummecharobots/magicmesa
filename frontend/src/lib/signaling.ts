@@ -20,14 +20,18 @@ export interface RoomState {
   roomName?: string
 }
 
-export interface PublicRoom {
+export interface ListedRoom {
   code: string
   name: string
   format: string
   playerCount: number
   maxPlayers: number
   hostName: string
+  isPublic: boolean
 }
+
+// Alias for backwards compatibility
+export type PublicRoom = ListedRoom
 
 class SignalingClient {
   private socket: Socket | null = null

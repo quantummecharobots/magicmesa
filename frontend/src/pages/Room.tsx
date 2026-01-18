@@ -111,9 +111,11 @@ export function Room() {
     audioEnabled,
     videoEnabled,
     mirrored,
+    flipped,
     toggleAudio,
     toggleVideo,
     toggleMirror,
+    toggleFlip,
     settings: cameraSettings,
     devices,
     switchCamera,
@@ -158,13 +160,19 @@ export function Room() {
     }
   }, [state, code, myLife, myPoison])
 
+  // Track if we're currently in the process of rejoining to prevent double execution
+  const isRejoiningRef = useRef(false)
+
   // Auto-rejoin room on refresh
   useEffect(() => {
     // Get the name to use - prefer locationState (has current data), fall back to savedSession
     const nameToUse = locationState?.name || savedSession?.name
 
-    if (isRejoining && code && nameToUse) {
+    // Guard against double execution (React StrictMode or rapid re-renders)
+    if (isRejoining && code && nameToUse && !isRejoiningRef.current) {
+      isRejoiningRef.current = true
       console.log('[Room] Reconnecting to room after refresh...')
+
       const rejoin = async () => {
         try {
           await signaling.connect()
@@ -191,8 +199,10 @@ export function Room() {
           }, 500)
 
           setIsRejoining(false)
+          isRejoiningRef.current = false
         } catch (err) {
           console.error('[Room] Failed to rejoin:', err)
+          isRejoiningRef.current = false
           clearSession()
           navigate('/')
         }
@@ -352,7 +362,21 @@ export function Room() {
 
       return changed ? updated : prev
     })
-  }, [peers])
+  }, [peers, players])
+
+  // Retry connections for players without streams
+  useEffect(() => {
+    const retryInterval = setInterval(() => {
+      players.forEach((player, peerId) => {
+        if (!player.stream && !peers.has(peerId)) {
+          console.log(`[Room] Retrying connection to ${player.name} (no stream, no peer)`)
+          initiateConnection(peerId)
+        }
+      })
+    }, 5000) // Retry every 5 seconds
+
+    return () => clearInterval(retryInterval)
+  }, [players, peers, initiateConnection])
 
   const handleLifeChange = useCallback((delta: number) => {
     const newLife = myLife + delta
@@ -430,6 +454,7 @@ export function Room() {
     audioEnabled,
     videoEnabled,
     mirrored,
+    flipped,
     onCaptureCard: handleCaptureCard,
     isProcessing
   }
@@ -513,6 +538,7 @@ export function Room() {
               onToggleMute={toggleAudio}
               onToggleVideo={toggleVideo}
               onToggleMirror={toggleMirror}
+              onToggleFlip={toggleFlip}
             />
           </div>
 

@@ -42,6 +42,14 @@ body {
   transform: scaleX(-1);
 }
 
+.video-flipped {
+  transform: rotate(180deg);
+}
+
+.video-mirrored.video-flipped {
+  transform: scaleX(-1) rotate(180deg);
+}
+
 /* ============================================
    FANTASY TYPOGRAPHY UTILITIES
    ============================================ */

@@ -42,13 +42,56 @@ export function useWebRTC(localStream: MediaStream | null) {
     localStreamRef.current = localStream
     if (localStream) {
       console.log('[WebRTC] Local stream available, adding tracks to existing peers')
-      peersRef.current.forEach((peer, peerId) => {
-        const senders = peer.connection.getSenders()
-        if (senders.length === 0) {
-          console.log(`[WebRTC] Adding tracks to existing connection ${peerId}`)
-          localStream.getTracks().forEach(track => {
-            peer.connection.addTrack(track, localStream)
-          })
+      peersRef.current.forEach(async (peer, peerId) => {
+        const pc = peer.connection
+        const senders = pc.getSenders()
+
+        // Check if we need to add tracks
+        const videoSender = senders.find(s => s.track?.kind === 'video')
+        const audioSender = senders.find(s => s.track?.kind === 'audio')
+        const videoTrack = localStream.getVideoTracks()[0]
+        const audioTrack = localStream.getAudioTracks()[0]
+
+        let needsRenegotiation = false
+
+        // Replace or add video track
+        if (videoTrack) {
+          if (videoSender) {
+            if (videoSender.track !== videoTrack) {
+              console.log(`[WebRTC] Replacing video track for ${peerId}`)
+              await videoSender.replaceTrack(videoTrack)
+            }
+          } else {
+            console.log(`[WebRTC] Adding video track for ${peerId}`)
+            pc.addTrack(videoTrack, localStream)
+            needsRenegotiation = true
+          }
+        }
+
+        // Replace or add audio track
+        if (audioTrack) {
+          if (audioSender) {
+            if (audioSender.track !== audioTrack) {
+              console.log(`[WebRTC] Replacing audio track for ${peerId}`)
+              await audioSender.replaceTrack(audioTrack)
+            }
+          } else {
+            console.log(`[WebRTC] Adding audio track for ${peerId}`)
+            pc.addTrack(audioTrack, localStream)
+            needsRenegotiation = true
+          }
+        }
+
+        // Renegotiate if we added new tracks and connection is stable
+        if (needsRenegotiation && pc.signalingState === 'stable') {
+          console.log(`[WebRTC] Renegotiating with ${peerId} after adding tracks`)
+          try {
+            const offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+            signaling.sendOffer(peerId, pc.localDescription!)
+          } catch (err) {
+            console.error(`[WebRTC] Renegotiation error with ${peerId}:`, err)
+          }
         }
       })
     }
@@ -115,6 +158,13 @@ export function useWebRTC(localStream: MediaStream | null) {
 
     pc.onconnectionstatechange = () => {
       console.log(`[WebRTC] Connection state with ${peerId}: ${pc.connectionState}`)
+      // If connection failed, remove peer so it can be retried
+      if (pc.connectionState === 'failed') {
+        console.log(`[WebRTC] Connection failed with ${peerId}, removing peer for retry`)
+        peersRef.current.delete(peerId)
+        pendingCandidatesRef.current.delete(peerId)
+        updatePeers()
+      }
     }
 
     // Note: We don't use onnegotiationneeded because it fires at unpredictable times

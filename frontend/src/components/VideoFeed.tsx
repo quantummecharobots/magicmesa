@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Mic, MicOff, Video, VideoOff, Maximize2, Scan, FlipHorizontal2 } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Maximize2, Scan, FlipHorizontal2, FlipVertical2 } from 'lucide-react'
 
 interface VideoFeedProps {
   stream: MediaStream | null
@@ -14,12 +14,14 @@ interface VideoFeedProps {
   onToggleMute?: () => void
   onToggleVideo?: () => void
   onToggleMirror?: () => void
+  onToggleFlip?: () => void
   onFullscreen?: () => void
   onCaptureCard?: (videoElement: HTMLVideoElement) => void
   onFocusPlayer?: () => void
   audioEnabled?: boolean
   videoEnabled?: boolean
   mirrored?: boolean
+  flipped?: boolean
   isProcessing?: boolean
 }
 
@@ -36,12 +38,14 @@ export function VideoFeed({
   onToggleMute,
   onToggleVideo,
   onToggleMirror,
+  onToggleFlip,
   onFullscreen,
   onCaptureCard,
   onFocusPlayer,
   audioEnabled = true,
   videoEnabled = true,
   mirrored = false,
+  flipped = false,
   isProcessing = false
 }: VideoFeedProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -105,7 +109,7 @@ export function VideoFeed({
         autoPlay
         playsInline
         muted={isLocal || isMuted}
-        className={`w-full h-full object-cover video-playmat ${onCaptureCard ? 'cursor-pointer' : ''} ${isLocal && mirrored ? 'video-mirrored' : ''}`}
+        className={`w-full h-full object-cover video-playmat ${onCaptureCard ? 'cursor-pointer' : ''} ${isLocal && mirrored ? 'video-mirrored' : ''} ${flipped ? 'video-flipped' : ''}`}
         title={onCaptureCard ? 'Click to scan card, double-click to enlarge' : 'Double-click to enlarge'}
       />
 
@@ -178,7 +182,7 @@ export function VideoFeed({
           )}
         </div>
 
-        {/* Controls */}
+        {/* Controls for local player */}
         {isLocal && (
           <div className="flex gap-1">
             {onCaptureCard && (
@@ -211,9 +215,18 @@ export function VideoFeed({
               <button
                 onClick={onToggleMirror}
                 className={`btn-icon-ornate ${mirrored ? 'active' : ''}`}
-                title="Mirror video"
+                title="Mirror video (horizontal)"
               >
                 <FlipHorizontal2 className="w-4 h-4" />
+              </button>
+            )}
+            {onToggleFlip && (
+              <button
+                onClick={onToggleFlip}
+                className={`btn-icon-ornate ${flipped ? 'active' : ''}`}
+                title="Flip video (180° rotation)"
+              >
+                <FlipVertical2 className="w-4 h-4" />
               </button>
             )}
             {onFullscreen && (
@@ -224,6 +237,19 @@ export function VideoFeed({
                 <Maximize2 className="w-4 h-4" />
               </button>
             )}
+          </div>
+        )}
+
+        {/* Flip control for remote players */}
+        {!isLocal && onToggleFlip && (
+          <div className="flex gap-1">
+            <button
+              onClick={onToggleFlip}
+              className={`btn-icon-ornate ${flipped ? 'active' : ''}`}
+              title="Flip video (180° rotation)"
+            >
+              <FlipVertical2 className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>

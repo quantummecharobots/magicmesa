@@ -15,6 +15,7 @@ interface GameLayoutProps {
     audioEnabled: boolean
     videoEnabled: boolean
     mirrored: boolean
+    flipped: boolean
     onCaptureCard?: (videoElement: HTMLVideoElement) => void
     isProcessing?: boolean
   }
@@ -24,6 +25,7 @@ interface GameLayoutProps {
   onToggleMute: () => void
   onToggleVideo: () => void
   onToggleMirror: () => void
+  onToggleFlip: () => void
 }
 
 export function GameLayout({
@@ -33,10 +35,20 @@ export function GameLayout({
   onPoisonChange,
   onToggleMute,
   onToggleVideo,
-  onToggleMirror
+  onToggleMirror,
+  onToggleFlip
 }: GameLayoutProps) {
   // Track which player is in the large view (null = local player)
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null)
+  // Track flip state for remote players (local-only, not synced)
+  const [remoteFlipStates, setRemoteFlipStates] = useState<Record<string, boolean>>({})
+
+  const toggleRemoteFlip = (playerId: string) => {
+    setRemoteFlipStates(prev => ({
+      ...prev,
+      [playerId]: !prev[playerId]
+    }))
+  }
 
   // Arrange players in commander-style layout:
   // Top row: opponents (seats 1, 2, 3 relative to local)
@@ -98,6 +110,8 @@ export function GameLayout({
                 audioEnabled={player.id === localPlayer.id ? localPlayer.audioEnabled : undefined}
                 videoEnabled={player.id === localPlayer.id ? localPlayer.videoEnabled : undefined}
                 mirrored={player.id === localPlayer.id ? localPlayer.mirrored : false}
+                flipped={player.id === localPlayer.id ? localPlayer.flipped : remoteFlipStates[player.id] || false}
+                onToggleFlip={player.id === localPlayer.id ? undefined : () => toggleRemoteFlip(player.id)}
                 onCaptureCard={localPlayer.onCaptureCard}
                 onFocusPlayer={() => setFocusedPlayerId(player.id === localPlayer.id ? null : player.id)}
                 isProcessing={localPlayer.isProcessing}
@@ -120,11 +134,13 @@ export function GameLayout({
           audioEnabled={isFocusedLocal ? localPlayer.audioEnabled : undefined}
           videoEnabled={isFocusedLocal ? localPlayer.videoEnabled : undefined}
           mirrored={isFocusedLocal ? localPlayer.mirrored : false}
+          flipped={isFocusedLocal ? localPlayer.flipped : remoteFlipStates[focusedPlayer.id] || false}
           onLifeChange={isFocusedLocal ? onLifeChange : undefined}
           onPoisonChange={isFocusedLocal ? onPoisonChange : undefined}
           onToggleMute={isFocusedLocal ? onToggleMute : undefined}
           onToggleVideo={isFocusedLocal ? onToggleVideo : undefined}
           onToggleMirror={isFocusedLocal ? onToggleMirror : undefined}
+          onToggleFlip={isFocusedLocal ? onToggleFlip : () => toggleRemoteFlip(focusedPlayer.id)}
           onCaptureCard={localPlayer.onCaptureCard}
           onFocusPlayer={() => setFocusedPlayerId(null)}
           isProcessing={localPlayer.isProcessing}

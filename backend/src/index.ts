@@ -131,31 +131,33 @@ const roomDeletionTimers = new Map<string, NodeJS.Timeout>()
 
 const ROOM_TIMEOUT_MS = 60000 // 1 minute
 
-function getPublicRooms() {
-  const publicRooms: Array<{
+function getListedRooms() {
+  const listedRooms: Array<{
     code: string
     name: string
     format: string
     playerCount: number
     maxPlayers: number
     hostName: string
+    isPublic: boolean
   }> = []
 
   rooms.forEach((room) => {
-    if (room.isPublic && room.players.size > 0 && room.players.size < 4) {
+    if (room.players.size > 0 && room.players.size < 4) {
       const host = room.players.get(room.hostId)
-      publicRooms.push({
-        code: room.code,
+      listedRooms.push({
+        code: room.isPublic ? room.code : '', // Hide code for private rooms
         name: room.name,
         format: room.format,
         playerCount: room.players.size,
         maxPlayers: 4,
-        hostName: host?.name || 'Unknown'
+        hostName: host?.name || 'Unknown',
+        isPublic: room.isPublic
       })
     }
   })
 
-  return publicRooms
+  return listedRooms
 }
 
 function generateRoomCode(): string {
@@ -182,10 +184,10 @@ io.on('connection', (socket) => {
   let playerName: string | null = null
 
   // Send current room list on connect
-  socket.emit('rooms-updated', getPublicRooms())
+  socket.emit('rooms-updated', getListedRooms())
 
   socket.on('list-rooms', (callback) => {
-    callback(getPublicRooms())
+    callback(getListedRooms())
   })
 
   socket.on('create-room', (data: { name: string; format: string; roomName?: string; isPublic?: boolean }, callback) => {
@@ -220,7 +222,7 @@ io.on('connection', (socket) => {
     playerName = data.name
 
     // Broadcast updated room list to all clients
-    io.emit('rooms-updated', getPublicRooms())
+    io.emit('rooms-updated', getListedRooms())
 
     callback({ success: true, code, seat: 0, startingLife, roomName: room.name })
     console.log(`Room ${code} "${room.name}" created by ${data.name}`)
@@ -296,7 +298,7 @@ io.on('connection', (socket) => {
     })
 
     // Broadcast updated room list
-    io.emit('rooms-updated', getPublicRooms())
+    io.emit('rooms-updated', getListedRooms())
 
     console.log(`${data.name} joined room ${roomCode}`)
   })
@@ -413,7 +415,7 @@ io.on('connection', (socket) => {
         }
 
         // Broadcast updated room list
-        io.emit('rooms-updated', getPublicRooms())
+        io.emit('rooms-updated', getListedRooms())
       }
     }
   })

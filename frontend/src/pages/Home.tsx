@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signaling, PublicRoom } from '../lib/signaling'
-import { Users, Play, ArrowRight, Globe } from 'lucide-react'
+import { Users, Play, ArrowRight, Globe, Lock } from 'lucide-react'
 
 const SAVED_NAME_KEY = 'magicmesa_player_name'
 
@@ -10,7 +10,6 @@ export function Home() {
   const [name, setName] = useState(() => {
     return localStorage.getItem(SAVED_NAME_KEY) || ''
   })
-  const [joinCode, setJoinCode] = useState('')
   const [format, setFormat] = useState('commander')
   const [roomName, setRoomName] = useState('')
   const [isPublic, setIsPublic] = useState(true)
@@ -19,6 +18,8 @@ export function Home() {
   const [error, setError] = useState('')
   const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([])
   const [joiningRoomCode, setJoiningRoomCode] = useState<string | null>(null)
+  const [expandedPrivateRoom, setExpandedPrivateRoom] = useState<string | null>(null)
+  const [privateRoomCode, setPrivateRoomCode] = useState('')
 
   // Connect to signaling server to get room updates
   useEffect(() => {
@@ -89,40 +90,6 @@ export function Home() {
     }
   }
 
-  const handleJoin = async () => {
-    if (!name.trim()) {
-      setError('Please enter your name')
-      return
-    }
-    if (!joinCode.trim()) {
-      setError('Please enter a room code')
-      return
-    }
-
-    setIsJoining(true)
-    setError('')
-
-    try {
-      if (!signaling.connected) {
-        await signaling.connect()
-      }
-      const roomState = await signaling.joinRoom(joinCode.trim(), name.trim())
-      navigate(`/room/${roomState.code}`, {
-        state: {
-          name: name.trim(),
-          seat: roomState.seat,
-          startingLife: roomState.startingLife,
-          format: roomState.format,
-          players: roomState.players,
-          isHost: false
-        }
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join room')
-      setIsJoining(false)
-    }
-  }
-
   const handleJoinRoom = async (code: string) => {
     if (!name.trim()) {
       setError('Please enter your name first')
@@ -150,6 +117,50 @@ export function Home() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room')
       setJoiningRoomCode(null)
+    }
+  }
+
+  const handlePrivateRoomClick = (roomName: string) => {
+    if (expandedPrivateRoom === roomName) {
+      setExpandedPrivateRoom(null)
+      setPrivateRoomCode('')
+    } else {
+      setExpandedPrivateRoom(roomName)
+      setPrivateRoomCode('')
+    }
+  }
+
+  const handleJoinPrivateRoom = async () => {
+    if (!name.trim()) {
+      setError('Please enter your name first')
+      return
+    }
+    if (!privateRoomCode.trim()) {
+      setError('Please enter the room code')
+      return
+    }
+
+    setIsJoining(true)
+    setError('')
+
+    try {
+      if (!signaling.connected) {
+        await signaling.connect()
+      }
+      const roomState = await signaling.joinRoom(privateRoomCode.trim(), name.trim())
+      navigate(`/room/${roomState.code}`, {
+        state: {
+          name: name.trim(),
+          seat: roomState.seat,
+          startingLife: roomState.startingLife,
+          format: roomState.format,
+          players: roomState.players,
+          isHost: false
+        }
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to join room')
+      setIsJoining(false)
     }
   }
 
@@ -182,6 +193,94 @@ export function Home() {
             <p className="text-mesa-red text-sm">{error}</p>
           </div>
         )}
+
+        {/* Join Game panel */}
+        <div className="panel-ornate p-6">
+          <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2 panel-header">
+            <Users className="w-5 h-5 text-mesa-gold" />
+            Join Game
+          </h2>
+
+          <div className="space-y-3">
+            {/* Room list - both public and private */}
+            {publicRooms.length === 0 ? (
+              <div className="text-mesa-text-secondary text-sm text-center py-4">
+                No games available. Create one below!
+              </div>
+            ) : (
+              publicRooms.map((room, index) => (
+                <div key={room.isPublic ? room.code : `private-${index}`} className="panel p-4 hover-glow">
+                  <div
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => !room.isPublic && handlePrivateRoomClick(room.name)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {room.isPublic ? (
+                        <Globe className="w-4 h-4 text-mesa-text-secondary" />
+                      ) : (
+                        <Lock className="w-4 h-4 text-mesa-text-secondary" />
+                      )}
+                      <div>
+                        <div className="text-mesa-text font-medium">{room.name}</div>
+                        <div className="text-mesa-text-secondary text-sm">
+                          {room.format.charAt(0).toUpperCase() + room.format.slice(1)} · {room.playerCount}/{room.maxPlayers} players · Host: {room.hostName}
+                        </div>
+                      </div>
+                    </div>
+                    {room.isPublic ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleJoinRoom(room.code)
+                        }}
+                        disabled={joiningRoomCode === room.code}
+                        className="btn-secondary !py-2 !px-4 text-sm"
+                      >
+                        {joiningRoomCode === room.code ? 'Joining...' : 'Join'}
+                      </button>
+                    ) : (
+                      <ArrowRight className={`w-4 h-4 text-mesa-text-secondary transition-transform ${expandedPrivateRoom === room.name ? 'rotate-90' : ''}`} />
+                    )}
+                  </div>
+
+                  {/* Code input for private rooms */}
+                  {!room.isPublic && expandedPrivateRoom === room.name && (
+                    <div className="mt-4 pt-4 border-t border-mesa-border">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={privateRoomCode}
+                          onChange={(e) => setPrivateRoomCode(e.target.value.toUpperCase())}
+                          placeholder="Enter room code"
+                          maxLength={6}
+                          className="input-ornate text-center tracking-widest font-mono text-lg uppercase flex-1"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleJoinPrivateRoom()
+                          }}
+                          disabled={isJoining || !privateRoomCode.trim()}
+                          className="btn-secondary !px-4"
+                        >
+                          {isJoining ? '...' : 'Join'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Ornate divider */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 divider-ornate" />
+          <span className="text-mesa-text-secondary text-sm font-fantasy">or</span>
+          <div className="flex-1 divider-ornate" />
+        </div>
 
         {/* Create game panel */}
         <div className="panel-ornate p-6">
@@ -222,7 +321,7 @@ export function Home() {
                 onChange={(e) => setIsPublic(e.target.checked)}
                 className="w-4 h-4 rounded border-mesa-border bg-mesa-dark text-mesa-gold focus:ring-mesa-gold accent-mesa-gold"
               />
-              List room publicly (others can see and join)
+              Open to all Mages
             </label>
           </div>
 
@@ -235,83 +334,6 @@ export function Home() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Ornate divider */}
-        <div className="flex items-center gap-4">
-          <div className="flex-1 divider-ornate" />
-          <span className="text-mesa-text-secondary text-sm font-fantasy">or</span>
-          <div className="flex-1 divider-ornate" />
-        </div>
-
-        {/* Join game panel */}
-        <div className="panel-ornate p-6">
-          <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2 panel-header">
-            <Users className="w-5 h-5 text-mesa-gold" />
-            Join Existing Game
-          </h2>
-
-          <div className="mb-4">
-            <label className="block text-mesa-text mb-2 text-sm">Room Code</label>
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="Enter 6-character code"
-              maxLength={6}
-              className="input-ornate text-center tracking-widest font-mono text-lg uppercase"
-            />
-          </div>
-
-          <button
-            onClick={handleJoin}
-            disabled={isJoining}
-            className="w-full btn-secondary flex items-center justify-center gap-2"
-          >
-            {isJoining ? 'Joining...' : 'Join Room'}
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Open Rooms List */}
-        {publicRooms.length > 0 && (
-          <>
-            <div className="flex items-center gap-4">
-              <div className="flex-1 divider-ornate" />
-              <span className="text-mesa-text-secondary text-sm font-fantasy">open games</span>
-              <div className="flex-1 divider-ornate" />
-            </div>
-
-            <div className="panel-ornate p-6">
-              <h2 className="text-lg font-semibold text-mesa-text mb-4 flex items-center gap-2 panel-header">
-                <Globe className="w-5 h-5 text-mesa-gold" />
-                Open Rooms
-              </h2>
-
-              <div className="space-y-3">
-                {publicRooms.map((room) => (
-                  <div
-                    key={room.code}
-                    className="flex items-center justify-between panel p-4 hover-glow cursor-pointer"
-                  >
-                    <div>
-                      <div className="text-mesa-text font-medium">{room.name}</div>
-                      <div className="text-mesa-text-secondary text-sm">
-                        {room.format.charAt(0).toUpperCase() + room.format.slice(1)} · {room.playerCount}/{room.maxPlayers} players · Host: {room.hostName}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleJoinRoom(room.code)}
-                      disabled={joiningRoomCode === room.code}
-                      className="btn-secondary !py-2 !px-4 text-sm"
-                    >
-                      {joiningRoomCode === room.code ? 'Joining...' : 'Join'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       <p className="mt-12 text-mesa-text-secondary text-sm">
