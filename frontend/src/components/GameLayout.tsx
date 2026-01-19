@@ -68,6 +68,15 @@ export function GameLayout({
 
   const opponents = getOpponentsBySeat()
 
+  // Calculate victory state - a player wins if they're alive and all opponents are dead
+  const allPlayers = [localPlayer, ...remotePlayers]
+  const alivePlayers = allPlayers.filter(p => p.life > 0)
+  const deadPlayers = allPlayers.filter(p => p.life <= 0)
+
+  // Victory requires: exactly one player alive, at least one player dead
+  const hasVictory = alivePlayers.length === 1 && deadPlayers.length > 0
+  const victorId = hasVictory ? alivePlayers[0].id : null
+
   // Get the focused player (default to local)
   const focusedPlayer = focusedPlayerId
     ? remotePlayers.find(p => p.id === focusedPlayerId) || localPlayer
@@ -115,6 +124,7 @@ export function GameLayout({
                 onCaptureCard={localPlayer.onCaptureCard}
                 onFocusPlayer={() => setFocusedPlayerId(player.id === localPlayer.id ? null : player.id)}
                 isProcessing={localPlayer.isProcessing}
+                isVictorious={victorId === player.id}
               />
             )}
           </div>
@@ -144,6 +154,7 @@ export function GameLayout({
           onCaptureCard={localPlayer.onCaptureCard}
           onFocusPlayer={() => setFocusedPlayerId(null)}
           isProcessing={localPlayer.isProcessing}
+          isVictorious={victorId === focusedPlayer.id}
         />
       </div>
     </div>

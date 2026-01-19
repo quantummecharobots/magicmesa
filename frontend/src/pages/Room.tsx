@@ -307,11 +307,15 @@ export function Room() {
     }
 
     const handleLifeUpdated = (data: { playerId: string; life: number }) => {
+      console.log(`[Room] Received life-updated: player=${data.playerId}, life=${data.life}`)
       setPlayers(prev => {
         const updated = new Map(prev)
         const player = updated.get(data.playerId)
         if (player) {
+          console.log(`[Room] Updating ${player.name}'s life: ${player.life} -> ${data.life}`)
           updated.set(data.playerId, { ...player, life: data.life })
+        } else {
+          console.log(`[Room] Player ${data.playerId} not found in players map`)
         }
         return updated
       })
@@ -390,11 +394,23 @@ export function Room() {
     signaling.updateLife(newLife)
   }, [myLife])
 
+  // For LifeCounter which passes absolute values
+  const handleLifeSet = useCallback((newLife: number) => {
+    setMyLife(newLife)
+    signaling.updateLife(newLife)
+  }, [])
+
   const handlePoisonChange = useCallback((delta: number) => {
     const newPoison = Math.max(0, myPoison + delta)
     setMyPoison(newPoison)
     signaling.updatePoison(newPoison)
   }, [myPoison])
+
+  // For LifeCounter which passes absolute values
+  const handlePoisonSet = useCallback((newPoison: number) => {
+    setMyPoison(newPoison)
+    signaling.updatePoison(newPoison)
+  }, [])
 
   const handleCommanderDamageChange = useCallback((from: string, damage: number, lifeDelta: number) => {
     setCommanderDamage(prev => ({ ...prev, [from]: damage }))
@@ -554,8 +570,8 @@ export function Room() {
               life={myLife}
               poison={myPoison}
               startingLife={state.startingLife}
-              onLifeChange={setMyLife}
-              onPoisonChange={setMyPoison}
+              onLifeChange={handleLifeSet}
+              onPoisonChange={handlePoisonSet}
               commanderDamage={commanderDamage}
               onCommanderDamageChange={handleCommanderDamageChange}
               opponents={opponents}

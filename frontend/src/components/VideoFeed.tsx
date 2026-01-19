@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Video, VideoOff, Maximize2, Scan, FlipHorizontal2, FlipVertical2 } from 'lucide-react'
 
 interface CaptureOptions {
@@ -29,6 +29,7 @@ interface VideoFeedProps {
   mirrored?: boolean
   flipped?: boolean
   isProcessing?: boolean
+  isVictorious?: boolean
 }
 
 export function VideoFeed({
@@ -52,9 +53,12 @@ export function VideoFeed({
   videoEnabled = true,
   mirrored = false,
   flipped = false,
-  isProcessing = false
+  isProcessing = false,
+  isVictorious = false
 }: VideoFeedProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [justDefeated, setJustDefeated] = useState(false)
+  const prevLifeRef = useRef<number>(life)
 
   useEffect(() => {
     console.log(`[VideoFeed] ${name}: stream=${stream ? 'yes' : 'no'}, isLocal=${isLocal}`)
@@ -63,6 +67,28 @@ export function VideoFeed({
       videoRef.current.srcObject = stream
     }
   }, [stream, name, isLocal])
+
+  // Track when player becomes defeated (transition from alive to dead)
+  useEffect(() => {
+    const wasAlive = prevLifeRef.current > 0
+    const isNowDead = life <= 0
+
+    console.log(`[VideoFeed] ${name}: life changed ${prevLifeRef.current} -> ${life}, wasAlive=${wasAlive}, isNowDead=${isNowDead}`)
+
+    // Always update the ref first
+    prevLifeRef.current = life
+
+    if (wasAlive && isNowDead) {
+      // Player just died - trigger the extended animation
+      console.log(`[VideoFeed] ${name}: JUST DEFEATED - showing extended animation`)
+      setJustDefeated(true)
+      // After 8 seconds, switch to normal defeated state
+      const timer = setTimeout(() => {
+        setJustDefeated(false)
+      }, 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [life, name])
 
   // Seat glow classes with pulse animation for the ornate frame effect
   const seatGlowClasses = [
@@ -96,13 +122,25 @@ export function VideoFeed({
   }
 
   const isDead = life <= 0
+  // Only apply grayscale after the initial defeat animation completes
+  const showGrayscale = isDead && !justDefeated
 
   return (
-    <div className={`relative video-frame-ornate overflow-hidden ${seatGlowClasses[seat]} transition-all ${isDead ? 'grayscale opacity-60' : ''}`}>
+    <div className={`relative video-frame-ornate overflow-hidden ${seatGlowClasses[seat]} transition-all ${showGrayscale ? 'grayscale opacity-60' : ''}`}>
       {/* Death overlay */}
       {isDead && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="text-6xl font-fantasy text-mesa-red text-glow animate-pulse">DEFEATED</div>
+          {justDefeated ? (
+            <div className="text-8xl font-fantasy text-red-500 defeated-flash">DEFEATED</div>
+          ) : (
+            <div className="text-6xl font-fantasy text-mesa-red text-glow animate-pulse">DEFEATED</div>
+          )}
+        </div>
+      )}
+      {/* Victory overlay */}
+      {isVictorious && !isDead && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none victory-overlay">
+          <div className="text-7xl font-fantasy text-yellow-300 victory-glow">VICTORY</div>
         </div>
       )}
       {/* Corner studs */}

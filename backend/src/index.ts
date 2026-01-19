@@ -365,17 +365,27 @@ io.on('connection', (socket) => {
 
   // Game state updates
   socket.on('update-life', (data: { life: number }) => {
-    if (!currentRoom) return
+    console.log(`[Life] Received update-life from ${socket.id}: life=${data.life}`)
+    if (!currentRoom) {
+      console.log(`[Life] No current room for ${socket.id}`)
+      return
+    }
     const room = rooms.get(currentRoom)
-    if (!room) return
+    if (!room) {
+      console.log(`[Life] Room ${currentRoom} not found`)
+      return
+    }
 
     const player = room.players.get(socket.id)
     if (player) {
+      console.log(`[Life] Broadcasting life-updated: ${player.name} (${socket.id}) life=${data.life} to room ${currentRoom}`)
       player.life = data.life
       socket.to(currentRoom).emit('life-updated', {
         playerId: socket.id,
         life: data.life
       })
+    } else {
+      console.log(`[Life] Player ${socket.id} not found in room ${currentRoom}`)
     }
   })
 
