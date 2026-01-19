@@ -296,6 +296,15 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
             >
               View on Scryfall <ExternalLink className="w-3 h-3" />
             </a>
+
+            <a
+              href={`https://www.tcgplayer.com/search/magic/product?productLineName=magic&q=${encodeURIComponent(selectedCard.name)}&view=grid`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-green-400 text-sm hover:underline"
+            >
+              Buy on TCGPlayer <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
         ) : (
           <>
