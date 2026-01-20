@@ -84,7 +84,9 @@ class SignalingClient {
         'poison-updated',
         'commander-damage-updated',
         'host-changed',
-        'rooms-updated'
+        'rooms-updated',
+        'scan-card-request',
+        'scan-card-response'
       ]
 
       events.forEach(event => {
@@ -196,6 +198,18 @@ class SignalingClient {
 
   updateCommanderDamage(from: string, damage: number): void {
     this.socket?.emit('update-commander-damage', { from, damage })
+  }
+
+  // Request a card scan from another player (they have the card, we want to scan it)
+  requestCardScan(targetId: string, clickPos: { x: number; y: number }): void {
+    console.log(`[Signaling] Requesting card scan from ${targetId}`)
+    this.socket?.emit('request-card-scan', { targetId, clickPos })
+  }
+
+  // Send card scan result back to the requester
+  sendCardScanResult(requesterId: string, cardName: string | null): void {
+    console.log(`[Signaling] Sending card scan result to ${requesterId}: ${cardName}`)
+    this.socket?.emit('card-scan-result', { requesterId, cardName })
   }
 
   on(event: string, callback: (...args: unknown[]) => void): void {

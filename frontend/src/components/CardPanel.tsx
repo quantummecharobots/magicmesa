@@ -360,10 +360,10 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
             </div>
             <div className="flex flex-wrap gap-2">
               {cardStack.map((card) => (
-                <button
+                <div
                   key={card.id}
                   onClick={() => setSelectedCard(card)}
-                  className={`relative group w-16 rounded overflow-hidden border-2 transition-all hover-glow ${
+                  className={`relative group w-16 rounded overflow-hidden border-2 transition-all hover-glow cursor-pointer ${
                     selectedCard?.id === card.id
                       ? 'border-mesa-gold'
                       : 'border-transparent hover:border-mesa-border'
@@ -385,7 +385,7 @@ export function CardPanel({ isOpen, onClose, initialSearch }: CardPanelProps) {
                   >
                     <X className="w-3 h-3" />
                   </button>
-                </button>
+                </div>
               ))}
             </div>
           </div>

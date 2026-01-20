@@ -5,6 +5,11 @@ export interface CameraDevice {
   label: string
 }
 
+export interface AudioDevice {
+  deviceId: string
+  label: string
+}
+
 export interface CameraSettings {
   width: number
   height: number
@@ -32,7 +37,11 @@ const CAMERA_FLIPPED_KEY = 'magicmesa_camera_flipped'
 export function useCamera() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [devices, setDevices] = useState<CameraDevice[]>([])
+  const [audioInputDevices, setAudioInputDevices] = useState<AudioDevice[]>([])
+  const [audioOutputDevices, setAudioOutputDevices] = useState<AudioDevice[]>([])
   const [currentDevice, setCurrentDevice] = useState<string | null>(null)
+  const [currentAudioInput, setCurrentAudioInput] = useState<string | null>(null)
+  const [currentAudioOutput, setCurrentAudioOutput] = useState<string | null>(null)
   const [currentResolution, setCurrentResolution] = useState<Resolution>(DEFAULT_RESOLUTION)
   const [settings, setSettings] = useState<CameraSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,8 +56,19 @@ export function useCamera() {
     const saved = localStorage.getItem(CAMERA_FLIPPED_KEY)
     return saved === 'true' // Default off
   })
+  // Focus control state
+  const [focusCapabilities, setFocusCapabilities] = useState<{
+    supported: boolean
+    min: number
+    max: number
+    step: number
+  } | null>(null)
+  const [focusDistance, setFocusDistanceState] = useState<number | null>(null)
+  const [focusMode, setFocusModeState] = useState<string>('continuous')
+
   const streamRef = useRef<MediaStream | null>(null)
   const resolutionRef = useRef<Resolution>(DEFAULT_RESOLUTION)
+  const audioInputRef = useRef<string | null>(null)
 
   const getDevices = useCallback(async () => {
     try {
@@ -59,7 +79,21 @@ export function useCamera() {
           deviceId: device.deviceId,
           label: device.label || `Camera ${device.deviceId.slice(0, 8)}`
         }))
+      const audioInputs = deviceList
+        .filter(device => device.kind === 'audioinput')
+        .map(device => ({
+          deviceId: device.deviceId,
+          label: device.label || `Microphone ${device.deviceId.slice(0, 8)}`
+        }))
+      const audioOutputs = deviceList
+        .filter(device => device.kind === 'audiooutput')
+        .map(device => ({
+          deviceId: device.deviceId,
+          label: device.label || `Speaker ${device.deviceId.slice(0, 8)}`
+        }))
       setDevices(videoDevices)
+      setAudioInputDevices(audioInputs)
+      setAudioOutputDevices(audioOutputs)
       return videoDevices
     } catch (err) {
       console.error('Failed to enumerate devices:', err)
@@ -67,12 +101,14 @@ export function useCamera() {
     }
   }, [])
 
-  const startCamera = useCallback(async (deviceId?: string, resolution?: Resolution) => {
+  const startCamera = useCallback(async (deviceId?: string, resolution?: Resolution, audioDeviceId?: string) => {
     setIsLoading(true)
     setError(null)
 
     // Use provided resolution or current resolution
     const res = resolution || resolutionRef.current
+    // Use provided audio device or current one
+    const audioId = audioDeviceId || audioInputRef.current
 
     try {
       // Stop existing stream
@@ -91,6 +127,7 @@ export function useCamera() {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          ...(audioId && { deviceId: { exact: audioId } })
         }
       }
 
@@ -108,6 +145,45 @@ export function useCamera() {
           frameRate: trackSettings.frameRate || 0
         })
         setCurrentDevice(trackSettings.deviceId || null)
+
+        // Check for focus capabilities
+        try {
+          const capabilities = videoTrack.getCapabilities() as MediaTrackCapabilities & {
+            focusMode?: string[]
+            focusDistance?: { min: number; max: number; step: number }
+          }
+          console.log('[Camera] Track capabilities:', capabilities)
+
+          if (capabilities.focusDistance) {
+            setFocusCapabilities({
+              supported: true,
+              min: capabilities.focusDistance.min,
+              max: capabilities.focusDistance.max,
+              step: capabilities.focusDistance.step || 0.01
+            })
+            // Get current focus distance
+            const currentSettings = trackSettings as MediaTrackSettings & { focusDistance?: number; focusMode?: string }
+            if (currentSettings.focusDistance !== undefined) {
+              setFocusDistanceState(currentSettings.focusDistance)
+            }
+            if (currentSettings.focusMode) {
+              setFocusModeState(currentSettings.focusMode)
+            }
+          } else {
+            setFocusCapabilities({ supported: false, min: 0, max: 0, step: 0 })
+          }
+        } catch (e) {
+          console.log('[Camera] Focus capabilities not available:', e)
+          setFocusCapabilities({ supported: false, min: 0, max: 0, step: 0 })
+        }
+      }
+
+      // Get audio input device
+      const audioTrack = mediaStream.getAudioTracks()[0]
+      if (audioTrack) {
+        const audioSettings = audioTrack.getSettings()
+        setCurrentAudioInput(audioSettings.deviceId || null)
+        audioInputRef.current = audioSettings.deviceId || null
       }
 
       // Refresh device list (labels become available after permission)
@@ -142,6 +218,18 @@ export function useCamera() {
     setCurrentResolution(resolution)
     return startCamera(currentDevice || undefined, resolution)
   }, [startCamera, currentDevice])
+
+  const switchMicrophone = useCallback(async (deviceId: string) => {
+    audioInputRef.current = deviceId
+    return startCamera(currentDevice || undefined, undefined, deviceId)
+  }, [startCamera, currentDevice])
+
+  const setAudioOutput = useCallback((deviceId: string) => {
+    setCurrentAudioOutput(deviceId)
+    // Note: Setting audio output on video elements must be done in the component
+    // using the setSinkId() method on the HTMLMediaElement
+    return deviceId
+  }, [])
 
   const toggleAudio = useCallback(() => {
     if (streamRef.current) {
@@ -179,6 +267,51 @@ export function useCamera() {
     })
   }, [])
 
+  // Set focus mode (manual or continuous)
+  const setFocusMode = useCallback(async (mode: 'manual' | 'continuous') => {
+    if (!streamRef.current) return false
+
+    const videoTrack = streamRef.current.getVideoTracks()[0]
+    if (!videoTrack) return false
+
+    try {
+      await videoTrack.applyConstraints({
+        // @ts-expect-error - focusMode is not in the standard types yet
+        focusMode: mode
+      })
+      setFocusModeState(mode)
+      console.log('[Camera] Focus mode set to:', mode)
+      return true
+    } catch (e) {
+      console.error('[Camera] Failed to set focus mode:', e)
+      return false
+    }
+  }, [])
+
+  // Set manual focus distance (0 = closest, 1 = infinity, or camera-specific range)
+  const setFocusDistance = useCallback(async (distance: number) => {
+    if (!streamRef.current) return false
+
+    const videoTrack = streamRef.current.getVideoTracks()[0]
+    if (!videoTrack) return false
+
+    try {
+      // First ensure we're in manual focus mode
+      await videoTrack.applyConstraints({
+        // @ts-expect-error - focusMode/focusDistance not in standard types yet
+        focusMode: 'manual',
+        focusDistance: distance
+      })
+      setFocusModeState('manual')
+      setFocusDistanceState(distance)
+      console.log('[Camera] Focus distance set to:', distance)
+      return true
+    } catch (e) {
+      console.error('[Camera] Failed to set focus distance:', e)
+      return false
+    }
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -191,7 +324,11 @@ export function useCamera() {
   return {
     stream,
     devices,
+    audioInputDevices,
+    audioOutputDevices,
     currentDevice,
+    currentAudioInput,
+    currentAudioOutput,
     currentResolution,
     settings,
     error,
@@ -200,14 +337,21 @@ export function useCamera() {
     videoEnabled,
     mirrored,
     flipped,
+    focusCapabilities,
+    focusDistance,
+    focusMode,
     startCamera,
     stopCamera,
     switchCamera,
+    switchMicrophone,
+    setAudioOutput,
     changeResolution,
     toggleAudio,
     toggleVideo,
     toggleMirror,
     toggleFlip,
+    setFocusMode,
+    setFocusDistance,
     getDevices
   }
 }

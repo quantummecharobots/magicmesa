@@ -8,6 +8,7 @@ interface Player {
   life: number
   poison: number
   stream: MediaStream | null
+  commanderDamage?: Record<string, number>  // Damage received from each opponent
 }
 
 interface GameLayoutProps {
@@ -68,10 +69,21 @@ export function GameLayout({
 
   const opponents = getOpponentsBySeat()
 
+  // Helper to check if a player is dead (life <= 0 OR 10+ poison OR 21+ commander damage from any single source)
+  const isPlayerDead = (player: Player): boolean => {
+    if (player.life <= 0) return true
+    if (player.poison >= 10) return true
+    if (player.commanderDamage) {
+      const maxCommanderDamage = Math.max(0, ...Object.values(player.commanderDamage))
+      if (maxCommanderDamage >= 21) return true
+    }
+    return false
+  }
+
   // Calculate victory state - a player wins if they're alive and all opponents are dead
   const allPlayers = [localPlayer, ...remotePlayers]
-  const alivePlayers = allPlayers.filter(p => p.life > 0)
-  const deadPlayers = allPlayers.filter(p => p.life <= 0)
+  const alivePlayers = allPlayers.filter(p => !isPlayerDead(p))
+  const deadPlayers = allPlayers.filter(p => isPlayerDead(p))
 
   // Victory requires: exactly one player alive, at least one player dead
   const hasVictory = alivePlayers.length === 1 && deadPlayers.length > 0
@@ -110,12 +122,14 @@ export function GameLayout({
             {player && (
               <VideoFeed
                 stream={player.stream}
+                playerId={player.id}
                 name={player.name}
                 life={player.life}
                 poison={player.poison}
+                commanderDamage={player.commanderDamage}
                 seat={player.seat}
                 isLocal={player.id === localPlayer.id}
-                isMuted={player.id !== localPlayer.id}
+                isMuted={false}
                 audioEnabled={player.id === localPlayer.id ? localPlayer.audioEnabled : undefined}
                 videoEnabled={player.id === localPlayer.id ? localPlayer.videoEnabled : undefined}
                 mirrored={player.id === localPlayer.id ? localPlayer.mirrored : false}
@@ -135,12 +149,14 @@ export function GameLayout({
       <div className="flex-1 min-h-0">
         <VideoFeed
           stream={focusedPlayer.stream}
+          playerId={focusedPlayer.id}
           name={focusedPlayer.name}
           life={focusedPlayer.life}
           poison={focusedPlayer.poison}
+          commanderDamage={focusedPlayer.commanderDamage}
           seat={focusedPlayer.seat}
           isLocal={isFocusedLocal}
-          isMuted={!isFocusedLocal}
+          isMuted={false}
           audioEnabled={isFocusedLocal ? localPlayer.audioEnabled : undefined}
           videoEnabled={isFocusedLocal ? localPlayer.videoEnabled : undefined}
           mirrored={isFocusedLocal ? localPlayer.mirrored : false}

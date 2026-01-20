@@ -16,6 +16,7 @@ interface CaptureOptions {
   clickPos?: ClickPosition
   flipped?: boolean
   mirrored?: boolean
+  applyFlipToCoords?: boolean  // Default true. Set false for remote scans where coords are pre-transformed
 }
 
 export function useCardRecognition() {
@@ -25,8 +26,8 @@ export function useCardRecognition() {
 
   // Capture a cropped region around the click point - simulating card detection
   const captureFrame = useCallback((videoElement: HTMLVideoElement, options?: CaptureOptions): string | null => {
-    const { clickPos, flipped, mirrored } = options || {}
-    console.log('[CardRecognition] captureFrame called, readyState:', videoElement?.readyState, 'videoWidth:', videoElement?.videoWidth, 'videoHeight:', videoElement?.videoHeight, 'clickPos:', clickPos, 'flipped:', flipped, 'mirrored:', mirrored)
+    const { clickPos, flipped, mirrored, applyFlipToCoords = true } = options || {}
+    console.log('[CardRecognition] captureFrame called, readyState:', videoElement?.readyState, 'videoWidth:', videoElement?.videoWidth, 'videoHeight:', videoElement?.videoHeight, 'clickPos:', clickPos, 'flipped:', flipped, 'mirrored:', mirrored, 'applyFlipToCoords:', applyFlipToCoords)
 
     if (!videoElement) {
       console.log('[CardRecognition] No video element')
@@ -47,28 +48,32 @@ export function useCardRecognition() {
     const srcHeight = videoElement.videoHeight
 
     // If we have a click position, crop around it
-    // Small crop to isolate the clicked card precisely
-    const cropRatio = 0.25 // Crop 25% of frame centered on click
+    // Card-shaped crop to isolate the clicked card precisely
+    const cropWidthRatio = 0.10   // Crop 10% width
+    const cropHeightRatio = 0.25  // Crop 25% height
 
     // Transform click coordinates if video is flipped/mirrored
     // The click is on the displayed (transformed) video, but we crop from raw video
+    // For remote scans, coords are pre-transformed, so skip this step (applyFlipToCoords = false)
     let centerX = clickPos ? clickPos.x : 0.5
     let centerY = clickPos ? clickPos.y : 0.5
 
-    if (flipped) {
-      // 180° rotation: both X and Y are inverted
-      centerX = 1 - centerX
-      centerY = 1 - centerY
-    }
-    if (mirrored) {
-      // Horizontal flip: only X is inverted
-      centerX = 1 - centerX
+    if (applyFlipToCoords) {
+      if (flipped) {
+        // 180° rotation: both X and Y are inverted
+        centerX = 1 - centerX
+        centerY = 1 - centerY
+      }
+      if (mirrored) {
+        // Horizontal flip: only X is inverted
+        centerX = 1 - centerX
+      }
     }
 
-    console.log('[CardRecognition] Adjusted crop center:', centerX, centerY, '(flipped:', flipped, 'mirrored:', mirrored, ')')
+    console.log('[CardRecognition] Adjusted crop center:', centerX, centerY, '(flipped:', flipped, 'mirrored:', mirrored, 'applyFlipToCoords:', applyFlipToCoords, ')')
 
-    const cropWidth = Math.floor(srcWidth * cropRatio)
-    const cropHeight = Math.floor(srcHeight * cropRatio)
+    const cropWidth = Math.floor(srcWidth * cropWidthRatio)
+    const cropHeight = Math.floor(srcHeight * cropHeightRatio)
 
     // Calculate crop position, clamping to stay within bounds
     let cropX = Math.floor(centerX * srcWidth - cropWidth / 2)
@@ -119,6 +124,7 @@ export function useCardRecognition() {
     // Use PNG for lossless quality
     const dataUrl = canvas.toDataURL('image/png')
     console.log('[CardRecognition] Frame captured, crop:', cropWidth, 'x', cropHeight, 'at', cropX, ',', cropY, '-> output:', outWidth, 'x', outHeight, 'size:', Math.round(dataUrl.length / 1024), 'KB')
+
     return dataUrl
   }, [])
 
@@ -135,6 +141,7 @@ export function useCardRecognition() {
     console.log('[CardRecognition] Starting recognition, API URL:', API_URL)
 
     try {
+      console.log('[CardRecognition] Fetching from:', `${API_URL}/api/recognize-card`)
       const response = await fetch(`${API_URL}/api/recognize-card`, {
         method: 'POST',
         headers: {
@@ -143,16 +150,27 @@ export function useCardRecognition() {
         body: JSON.stringify({ image: imageData })
       })
 
+      console.log('[CardRecognition] Response status:', response.status)
+
       if (!response.ok) {
         const text = await response.text()
+        console.error('[CardRecognition] API error response:', text)
         throw new Error(`API error: ${response.status} - ${text}`)
       }
 
-      const result = await response.json()
-      console.log('[CardRecognition] Result:', result)
-      return result
+      const text = await response.text()
+      console.log('[CardRecognition] Raw response text:', text)
+
+      try {
+        const result = JSON.parse(text)
+        console.log('[CardRecognition] Parsed result:', result)
+        return result
+      } catch (parseErr) {
+        console.error('[CardRecognition] JSON parse error:', parseErr, 'Text was:', text)
+        return null
+      }
     } catch (err) {
-      console.error('[CardRecognition] Error:', err)
+      console.error('[CardRecognition] Fetch error:', err)
       return null
     } finally {
       isProcessingRef.current = false

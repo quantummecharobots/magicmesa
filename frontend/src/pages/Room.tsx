@@ -36,17 +36,19 @@ interface SavedSession {
   isHost: boolean
   life: number
   poison: number
+  commanderDamage: Record<string, number>
+  scannedCards: string[]
 }
 
 const SESSION_KEY = 'magicmesa_session'
 
 function saveSession(session: SavedSession) {
   console.log('[Session] Saving session:', session)
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
 function loadSession(): SavedSession | null {
-  const saved = sessionStorage.getItem(SESSION_KEY)
+  const saved = localStorage.getItem(SESSION_KEY)
   console.log('[Session] Loading session:', saved)
   if (saved) {
     try {
@@ -62,7 +64,7 @@ function loadSession(): SavedSession | null {
 }
 
 function clearSession() {
-  sessionStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(SESSION_KEY)
 }
 
 export function Room() {
@@ -72,16 +74,19 @@ export function Room() {
   const locationState = location.state as LocationState | null
 
   // Always try to load session - we need it to detect refresh
-  const savedSession = loadSession()
+  const loadedSession = loadSession()
+  // Only use saved session if it matches the current room
+  const savedSession = loadedSession?.code === code ? loadedSession : null
 
   // Detect refresh: we have session data for this room but signaling is not connected
   // This happens because React Router preserves locationState across refresh,
   // but the socket connection is lost
-  const needsReconnect = savedSession?.code === code && !signaling.connected
+  const needsReconnect = savedSession && !signaling.connected
 
   // Debug logging (can be removed in production)
   if (needsReconnect) {
     console.log('[Room] Detected page refresh, will reconnect to room:', code)
+    console.log('[Room] Restoring state - life:', savedSession.life, 'poison:', savedSession.poison)
   }
 
   // Use location state, or restore from session if we need to reconnect
@@ -98,8 +103,9 @@ export function Room() {
   const playersRef = useRef<Map<string, Player>>(new Map())
   const [myLife, setMyLife] = useState(savedSession?.life ?? state?.startingLife ?? 40)
   const [myPoison, setMyPoison] = useState(savedSession?.poison ?? 0)
-  const [isRejoining, setIsRejoining] = useState(needsReconnect)
-  const [commanderDamage, setCommanderDamage] = useState<Record<string, number>>({})
+  const [isRejoining, setIsRejoining] = useState(!!needsReconnect)
+  const [commanderDamage, setCommanderDamage] = useState<Record<string, number>>(savedSession?.commanderDamage ?? {})
+  const [scannedCards, setScannedCards] = useState<string[]>(savedSession?.scannedCards ?? [])
   const [copied, setCopied] = useState(false)
   const [showCardPanel, setShowCardPanel] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -118,26 +124,86 @@ export function Room() {
     toggleFlip,
     settings: cameraSettings,
     devices,
+    audioInputDevices,
+    audioOutputDevices,
+    currentAudioInput,
+    currentAudioOutput,
     switchCamera,
+    switchMicrophone,
+    setAudioOutput,
     currentResolution,
-    changeResolution
+    changeResolution,
+    focusCapabilities,
+    focusDistance,
+    focusMode,
+    setFocusMode,
+    setFocusDistance
   } = useCamera()
 
   const { peers, initiateConnection } = useWebRTC(stream)
   const { isProcessing, captureAndRecognize } = useCardRecognition()
 
+  // Ref to local video element for responding to remote scan requests
+  const localVideoRef = useRef<HTMLVideoElement | null>(null)
+  // Ref to local stream for scan request handler (avoids stale closure)
+  const streamRef = useRef<MediaStream | null>(null)
+  // Pending scan state - when waiting for remote response
+  const [pendingRemoteScan, setPendingRemoteScan] = useState(false)
+
+  // Keep streamRef in sync with stream
+  useEffect(() => {
+    streamRef.current = stream
+    console.log('[Room] Stream updated:', stream ? `${stream.getTracks().length} tracks` : 'null')
+  }, [stream])
+
   // Handle card capture on click - options include click position and flip/mirror state
-  const handleCaptureCard = useCallback(async (videoElement: HTMLVideoElement, options?: CaptureOptions) => {
-    // Add our flip/mirror state to the options
-    const captureOptions: CaptureOptions = {
-      ...options,
-      flipped: options?.flipped ?? flipped,
-      mirrored: options?.mirrored ?? mirrored
+  // If playerId is provided and it's not us, request the scan from that player
+  const handleCaptureCard = useCallback(async (videoElement: HTMLVideoElement, options?: CaptureOptions & { playerId?: string }) => {
+    console.log('[Room] handleCaptureCard called, playerId:', options?.playerId, 'myId:', signaling.id)
+
+    const isRemotePlayer = options?.playerId && options.playerId !== signaling.id
+
+    if (isRemotePlayer) {
+      // Request the card owner to scan from their local camera
+      console.log('[Room] Requesting remote scan from:', options.playerId)
+      setPendingRemoteScan(true)
+      signaling.requestCardScan(options.playerId!, options.clickPos || { x: 0.5, y: 0.5 })
+      return // Wait for response via event listener
     }
-    const result = await captureAndRecognize(videoElement, captureOptions)
-    // Always open panel, set card name if recognized
-    setRecognizedCard(result?.cardName || undefined)
-    setShowCardPanel(true)
+
+    // Local capture
+    try {
+      // Store ref to local video for remote scan requests
+      if (!isRemotePlayer) {
+        localVideoRef.current = videoElement
+      }
+
+      // Add our flip/mirror state to the options
+      const captureOptions: CaptureOptions = {
+        ...options,
+        flipped: options?.flipped ?? flipped,
+        mirrored: options?.mirrored ?? mirrored
+      }
+      const result = await captureAndRecognize(videoElement, captureOptions)
+      console.log('[Room] Card recognition result:', result)
+      // Always open panel, set card name if recognized
+      const cardName = result?.cardName || undefined
+      setRecognizedCard(cardName)
+      setShowCardPanel(true)
+      // Add to scanned cards history if recognized
+      if (cardName) {
+        setScannedCards(prev => {
+          // Avoid duplicates, keep most recent first, limit to 20
+          const filtered = prev.filter(c => c !== cardName)
+          return [cardName, ...filtered].slice(0, 20)
+        })
+      }
+    } catch (err) {
+      console.error('[Room] Card capture error:', err)
+      // Still open the panel even on error
+      setRecognizedCard(undefined)
+      setShowCardPanel(true)
+    }
   }, [captureAndRecognize, flipped, mirrored])
 
   // Initialize camera on mount
@@ -150,7 +216,7 @@ export function Room() {
     signaling.localStream = stream
   }, [stream])
 
-  // Save session to sessionStorage whenever relevant state changes
+  // Save session to localStorage whenever relevant state changes
   useEffect(() => {
     if (state && code) {
       saveSession({
@@ -161,10 +227,12 @@ export function Room() {
         format: state.format,
         isHost: state.isHost,
         life: myLife,
-        poison: myPoison
+        poison: myPoison,
+        commanderDamage,
+        scannedCards
       })
     }
-  }, [state, code, myLife, myPoison])
+  }, [state, code, myLife, myPoison, commanderDamage, scannedCards])
 
   // Track if we're currently in the process of rejoining to prevent double execution
   const isRejoiningRef = useRef(false)
@@ -345,6 +413,112 @@ export function Room() {
     }
   }, [initiateConnection])
 
+  // Handle remote card scan requests and responses
+  useEffect(() => {
+    // When another player requests us to scan a card from our camera
+    const handleScanRequest = async (data: { requesterId: string; clickPos: { x: number; y: number } }) => {
+      console.log('[Room] Received scan request from:', data.requesterId, 'at position:', data.clickPos)
+
+      // Use ref to get current stream (avoids stale closure)
+      const currentStream = streamRef.current
+      console.log('[Room] Current stream for scan:', currentStream ? `${currentStream.getTracks().length} tracks, active=${currentStream.active}` : 'null')
+
+      if (!currentStream) {
+        console.log('[Room] No local stream for scan request - sending null result')
+        signaling.sendCardScanResult(data.requesterId, null)
+        return
+      }
+
+      // Check if stream has active video track
+      const videoTracks = currentStream.getVideoTracks()
+      console.log('[Room] Video tracks:', videoTracks.length, videoTracks.map(t => `${t.label} enabled=${t.enabled} readyState=${t.readyState}`))
+
+      if (videoTracks.length === 0 || !videoTracks[0].enabled) {
+        console.log('[Room] No active video track for scan request')
+        signaling.sendCardScanResult(data.requesterId, null)
+        return
+      }
+
+      try {
+        // Create a temporary video element to capture from our stream
+        const tempVideo = document.createElement('video')
+        tempVideo.srcObject = currentStream
+        tempVideo.muted = true
+        tempVideo.playsInline = true
+
+        // Wait for video to be ready
+        await new Promise<void>((resolve, reject) => {
+          tempVideo.onloadedmetadata = () => {
+            console.log('[Room] Temp video metadata loaded:', tempVideo.videoWidth, 'x', tempVideo.videoHeight)
+            tempVideo.play().then(() => resolve()).catch(reject)
+          }
+          tempVideo.onerror = (e) => {
+            console.error('[Room] Temp video error:', e)
+            reject(e)
+          }
+          // Timeout after 5 seconds
+          setTimeout(() => reject(new Error('Video load timeout')), 5000)
+        })
+
+        // Give it a moment to actually render frames
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        console.log('[Room] Capturing from local stream for remote request, video ready:', tempVideo.videoWidth, 'x', tempVideo.videoHeight)
+
+        // Capture and recognize the card at the click position
+        // For remote requests:
+        // - Coordinates come pre-transformed from the requester (based on how they view our video)
+        // - We DO apply our flip/mirror to the OUTPUT IMAGE so it appears right-side up
+        // - But we set applyToCoords: false so the coords aren't double-transformed
+        const result = await captureAndRecognize(tempVideo, {
+          clickPos: data.clickPos,
+          flipped,
+          mirrored,
+          applyFlipToCoords: false  // Coords already transformed by requester
+        })
+
+        console.log('[Room] Scan result for remote request:', result)
+
+        // Send result back to requester
+        signaling.sendCardScanResult(data.requesterId, result?.cardName || null)
+
+        // Clean up
+        tempVideo.srcObject = null
+      } catch (err) {
+        console.error('[Room] Error processing scan request:', err)
+        signaling.sendCardScanResult(data.requesterId, null)
+      }
+    }
+
+    // When we receive a scan response from a remote player
+    const handleScanResponse = (data: { cardName: string | null }) => {
+      console.log('[Room] Received scan response:', data.cardName)
+      setPendingRemoteScan(false)
+
+      // Open the card panel with the result
+      const cardName = data.cardName || undefined
+      setRecognizedCard(cardName)
+      setShowCardPanel(true)
+
+      // Add to scanned cards history if recognized
+      if (cardName) {
+        setScannedCards(prev => {
+          // Avoid duplicates, keep most recent first, limit to 20
+          const filtered = prev.filter(c => c !== cardName)
+          return [cardName, ...filtered].slice(0, 20)
+        })
+      }
+    }
+
+    signaling.on('scan-card-request', handleScanRequest as (...args: unknown[]) => void)
+    signaling.on('scan-card-response', handleScanResponse as (...args: unknown[]) => void)
+
+    return () => {
+      signaling.off('scan-card-request', handleScanRequest as (...args: unknown[]) => void)
+      signaling.off('scan-card-response', handleScanResponse as (...args: unknown[]) => void)
+    }
+  }, [flipped, mirrored, captureAndRecognize]) // Note: uses streamRef instead of stream to avoid stale closures
+
   // Update player streams from WebRTC peers
   useEffect(() => {
     console.log('[Room] Peers updated, checking streams:', peers.size, 'peers')
@@ -472,13 +646,14 @@ export function Room() {
     seat: state.seat,
     life: myLife,
     poison: myPoison,
+    commanderDamage,
     stream,
     audioEnabled,
     videoEnabled,
     mirrored,
     flipped,
     onCaptureCard: handleCaptureCard,
-    isProcessing
+    isProcessing: isProcessing || pendingRemoteScan
   }
 
   const remotePlayers = Array.from(players.values())
@@ -546,22 +721,24 @@ export function Room() {
       <div className="flex-1 flex min-h-0">
         {/* Game area with wooden frame and felt texture */}
         <div className="flex-1 p-4 flex gap-4">
-          <div className="flex-1 frame-wooden felt-texture ambient-glow rounded-lg relative">
+          <div className="flex-1 frame-wooden felt-texture ambient-glow rounded-lg relative overflow-hidden">
             {/* Corner flourishes */}
             <div className="frame-corner frame-corner--tl"></div>
             <div className="frame-corner frame-corner--tr"></div>
             <div className="frame-corner frame-corner--bl"></div>
             <div className="frame-corner frame-corner--br"></div>
-            <GameLayout
-              localPlayer={localPlayer}
-              remotePlayers={remotePlayers}
-              onLifeChange={handleLifeChange}
-              onPoisonChange={handlePoisonChange}
-              onToggleMute={toggleAudio}
-              onToggleVideo={toggleVideo}
-              onToggleMirror={toggleMirror}
-              onToggleFlip={toggleFlip}
-            />
+            <div className="absolute inset-0 p-3">
+              <GameLayout
+                localPlayer={localPlayer}
+                remotePlayers={remotePlayers}
+                onLifeChange={handleLifeChange}
+                onPoisonChange={handlePoisonChange}
+                onToggleMute={toggleAudio}
+                onToggleVideo={toggleVideo}
+                onToggleMirror={toggleMirror}
+                onToggleFlip={toggleFlip}
+              />
+            </div>
           </div>
 
           {/* Side panel - Life counter */}
@@ -636,6 +813,91 @@ export function Room() {
                   <p className="text-mesa-text-secondary text-xs mt-1">
                     Actual: {cameraSettings.width}x{cameraSettings.height}
                   </p>
+                )}
+              </div>
+
+              {audioInputDevices.length > 0 && (
+                <div>
+                  <label className="block text-mesa-text text-sm mb-2">Microphone</label>
+                  <select
+                    value={currentAudioInput || ''}
+                    onChange={(e) => switchMicrophone(e.target.value)}
+                    className="select-ornate"
+                  >
+                    {audioInputDevices.map(device => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {audioOutputDevices.length > 0 && (
+                <div>
+                  <label className="block text-mesa-text text-sm mb-2">Speakers</label>
+                  <select
+                    value={currentAudioOutput || ''}
+                    onChange={(e) => setAudioOutput(e.target.value)}
+                    className="select-ornate"
+                  >
+                    {audioOutputDevices.map(device => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Focus Control */}
+              <div>
+                <label className="block text-mesa-text text-sm mb-2">Camera Focus</label>
+                {focusCapabilities?.supported ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setFocusMode('continuous')}
+                        className={`flex-1 px-3 py-1.5 rounded text-sm transition-colors ${
+                          focusMode === 'continuous'
+                            ? 'bg-mesa-gold text-mesa-dark'
+                            : 'bg-mesa-card text-mesa-text hover:bg-mesa-border'
+                        }`}
+                      >
+                        Auto
+                      </button>
+                      <button
+                        onClick={() => setFocusMode('manual')}
+                        className={`flex-1 px-3 py-1.5 rounded text-sm transition-colors ${
+                          focusMode === 'manual'
+                            ? 'bg-mesa-gold text-mesa-dark'
+                            : 'bg-mesa-card text-mesa-text hover:bg-mesa-border'
+                        }`}
+                      >
+                        Manual
+                      </button>
+                    </div>
+                    {focusMode === 'manual' && (
+                      <div>
+                        <input
+                          type="range"
+                          min={focusCapabilities.min}
+                          max={focusCapabilities.max}
+                          step={focusCapabilities.step}
+                          value={focusDistance ?? focusCapabilities.min}
+                          onChange={(e) => setFocusDistance(parseFloat(e.target.value))}
+                          className="w-full accent-mesa-gold"
+                        />
+                        <div className="flex justify-between text-xs text-mesa-text-secondary">
+                          <span>Near</span>
+                          <span>{focusDistance?.toFixed(2) ?? '-'}</span>
+                          <span>Far</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-mesa-text-secondary text-sm">Manual focus not supported by this camera</p>
                 )}
               </div>
 

@@ -86,7 +86,10 @@ export function useWebRTC(localStream: MediaStream | null) {
         if (needsRenegotiation && pc.signalingState === 'stable') {
           console.log(`[WebRTC] Renegotiating with ${peerId} after adding tracks`)
           try {
-            const offer = await pc.createOffer()
+            const offer = await pc.createOffer({
+              offerToReceiveAudio: true,
+              offerToReceiveVideo: true
+            })
             await pc.setLocalDescription(offer)
             signaling.sendOffer(peerId, pc.localDescription!)
           } catch (err) {
@@ -111,7 +114,20 @@ export function useWebRTC(localStream: MediaStream | null) {
     if (stream) {
       stream.getTracks().forEach(track => {
         console.log(`[WebRTC] Adding local ${track.kind} track`)
-        pc.addTrack(track, stream)
+        const sender = pc.addTrack(track, stream)
+
+        // Set high bitrate for video to preserve quality for card scanning
+        if (track.kind === 'video' && sender) {
+          const params = sender.getParameters()
+          if (!params.encodings) {
+            params.encodings = [{}]
+          }
+          // Set high bitrate (4 Mbps) for better video quality
+          params.encodings[0].maxBitrate = 4000000
+          sender.setParameters(params).catch(err => {
+            console.warn('[WebRTC] Failed to set video bitrate:', err)
+          })
+        }
       })
     } else {
       console.log(`[WebRTC] No local stream yet, tracks will be added later`)
@@ -205,7 +221,11 @@ export function useWebRTC(localStream: MediaStream | null) {
     const pc = createPeerConnection(peerId)
 
     try {
-      const offer = await pc.createOffer()
+      // Always indicate we want to receive audio/video even if we don't have local tracks yet
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      })
       await pc.setLocalDescription(offer)
       console.log(`[WebRTC] Set local description (offer) for ${peerId}, gathering state: ${pc.iceGatheringState}`)
 
